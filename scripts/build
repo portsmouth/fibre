@@ -1,0 +1,54 @@
+#!/usr/bin/python
+
+import os, imp
+
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+os.chdir(dname)
+
+print '******************\ncompile shaders into JS source ...'
+ShaderDir = '../shaders'
+src = "var Shaders = {\n\n"
+for f in os.listdir(ShaderDir):
+
+    if f.find('.glsl') == -1: continue
+    name = f.replace('.glsl', '')
+    src += "'%s': `#version 300 es" % name
+    path = os.path.join(ShaderDir, f)
+    lines = open(path).read().strip().split('\n')
+    code = []
+    code.append('')
+    code.extend(lines)
+
+    for i, line in enumerate(code):
+        src += line.lstrip('\n') + '\n'
+        if i==len(code)-1:
+            src += "`,\n\n"
+
+src += "}"
+open("../js/shaders.js", 'w').write(src)
+
+print '\n******************\nminify code into fibre.min.js ...'
+# Construct the command for Google Closure Compiler, to generate minified code
+jsDestPath = "../js/compiled/fibre.min.js"
+jsSources = [ 
+'../js/thirdparty/jquery-1.11.3.min.js',
+'../js/thirdparty/three/three.min.js',
+'../js/thirdparty/three/libs/stats.min.js',
+'../js/thirdparty/three/libs/dat.gui.min.js',
+'../js/thirdparty/three/controls/OrbitControls.js',
+'../js/gl.js',
+'../js/gui.js',
+'../js/shaders.js',
+'../js/raytracer.js',
+'../js/fibre.js' 
+]
+
+lib_files = ' '.join(jsSources)
+cmd = '''
+java -jar closure-compiler/compiler.jar --js %s -O WHITESPACE_ONLY --js_output_file %s
+''' % (lib_files, jsDestPath)
+
+os.system(cmd)
+
+

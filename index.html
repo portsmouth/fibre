@@ -1,0 +1,26 @@
+   
+<body onload="onLoad();">
+
+<script src='./js/thirdparty/jquery-1.11.3.min.js'></script>
+<script src='./js/thirdparty/jquery-1.11.3.min.js'></script>
+<script src='./js/thirdparty/three/three.min.js'></script>
+<script src='./js/thirdparty/three/libs/stats.min.js'></script>
+<script src='./js/thirdparty/three/libs/dat.gui.min.js'></script>
+<script src='./js/thirdparty/three/controls/OrbitControls.js'></script>
+<script src='./js/gl.js'></script>
+<script src='./js/gui.js'></script>
+<script src='./js/shaders.js'></script>
+<script src='./js/raytracer.js'></script>
+<script src='./js/fibre.js'></script>
+
+
+<?/* ------------------------------------------------------------------*/?>
+<?/*                            main loop                              */?>
+<?/* ------------------------------------------------------------------*/?>
+
+<script type="text/javascript">
+function onLoad() { fibre = new Fibre(); animateLoop(); }
+function animateLoop() { fibre.render(); window.requestAnimationFrame(animateLoop); }
+</script>
+
+</body>
