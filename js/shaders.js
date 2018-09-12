@@ -86,9 +86,8 @@ uniform vec3 boundsMin;
 uniform vec3 boundsMax;
 
 layout(location = 0) out vec4 gbuf_pos;
-layout(location = 1) out vec4 gbuf_vel;
+layout(location = 1) out vec4 gbuf_rgb;
 layout(location = 2) out vec4 gbuf_rnd;
-layout(location = 3) out vec4 gbuf_rgb;
 
 in vec2 vTexCoord;
 
@@ -111,6 +110,19 @@ float rand(inout vec4 rnd)
     return fract(dot(rnd/m, vec4(1.0, -1.0, 1.0, -1.0)));
 }
 
+// local emission color, a function of:
+//  - position p
+//  - arclength from start point, s
+vec3 color(vec3 p, float t)
+{
+    vec3 c;
+    float x = p.x;
+    float y = p.y;
+    float z = p.z;
+    COLOR_FIELD
+    return c;
+}    
+
 void main()
 {
     vec4 seed = texture(RngData, vTexCoord);
@@ -123,6 +135,8 @@ void main()
     }
     else
     {
+        // @todo: make start points align with grid cell centers
+        
         vec3 g = gridSpace / boundsExtent;
         X += vec3(g.x*floor(rand(seed)/g.x), 
                   g.y*floor(rand(seed)/g.y), 
@@ -138,9 +152,8 @@ void main()
     }
 
     gbuf_pos = vec4(X, 0.0);
-    gbuf_vel = vec4(0.0, 0.0, 0.0, 1.0);
+    gbuf_rgb = vec4(color(X, 0.0), 1.0);
     gbuf_rnd = seed;
-    gbuf_rgb = vec4(1.0, 1.0, 1.0, 1.0);
 }
 `,
 
@@ -166,7 +179,7 @@ out vec4 outputColor;
 
 void main() 
 {
-	outputColor = vColor;
+    outputColor = vColor;
 }
 `,
 
@@ -175,7 +188,8 @@ precision highp float;
 
 uniform sampler2D PosDataA;
 uniform sampler2D PosDataB;
-uniform sampler2D RgbData;
+uniform sampler2D RgbDataA;
+uniform sampler2D RgbDataB;
 uniform mat4 u_projectionMatrix;
 uniform mat4 u_modelViewMatrix;
 
@@ -186,14 +200,15 @@ void main()
 {
 	// Textures A and B contain line segment start and end points respectively
 	// (i.e. the geometry defined by this vertex shader is stored in textures)
-	vec4 posA  = texture(PosDataA, TexCoord.xy);
-	vec4 posB  = texture(PosDataB, TexCoord.xy);
-    vec4 color =  texture(RgbData, TexCoord.xy);
+	vec4 posA   = texture(PosDataA, TexCoord.xy);
+	vec4 posB   = texture(PosDataB, TexCoord.xy);
+    vec4 colorA = texture(RgbDataA, TexCoord.xy);
+    vec4 colorB = texture(RgbDataB, TexCoord.xy);
 
 	// Line segment vertex position (either posA or posB)
 	vec4 pos = mix(posA, posB, TexCoord.z);
 	gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(pos.xyz, 1.0);
-	vColor = vec4(color.rgb, 1.0);
+	vColor = mix(colorA, colorB, TexCoord.z);
 }
 `,
 
@@ -267,18 +282,14 @@ void main()
 precision highp float;
 
 uniform sampler2D PosData;
-uniform sampler2D VelData;
-uniform sampler2D RngData;
 uniform sampler2D RgbData;
+uniform sampler2D RngData;
 
-uniform float stepDistance;
-
-uniform float shrink;
+uniform float timestep;
 
 layout(location = 0) out vec4 gbuf_pos;
-layout(location = 1) out vec4 gbuf_vel;
+layout(location = 1) out vec4 gbuf_rgb;
 layout(location = 2) out vec4 gbuf_rnd;
-layout(location = 3) out vec4 gbuf_rgb;
 
 in vec2 vTexCoord;
 
@@ -287,7 +298,7 @@ in vec2 vTexCoord;
 // Dynamically injected code
 //////////////////////////////////////////////////////////////
 
-vec3 velocity(vec3 p)
+vec3 velocity(vec3 p, float t)
 {
     vec3 v;
     float x = p.x;
@@ -297,6 +308,9 @@ vec3 velocity(vec3 p)
     return v;
 }    
 
+// local emission color, a function of:
+//  - position p
+//  - arclength from start point, s
 vec3 color(vec3 p, float t)
 {
     vec3 c;
@@ -315,20 +329,26 @@ vec3 color(vec3 p, float t)
 void main()
 {
     vec4 X        = texture(PosData, vTexCoord);
-    vec4 V        = texture(VelData, vTexCoord);
-    vec4 rnd      = texture(RngData, vTexCoord);
     vec4 rgbw     = texture(RgbData, vTexCoord);
+    vec4 rnd      = texture(RngData, vTexCoord);
+    
+    vec3 x = X.xyz;
+    float t = X.w;
+    
+    // Integrate ODE with 4th order Runge-Kutta method
+    vec3 k1 = timestep * velocity(x,        t             );
+    vec3 k2 = timestep * velocity(x+0.5*k1, t+0.5*timestep);
+    vec3 k3 = timestep * velocity(x+0.5*k2, t+0.5*timestep);
+    vec3 k4 = timestep * velocity(x+    k3, t+    timestep);
 
-    vec3 v = velocity(X.xyz);
-    X.xyz += stepDistance*v;
-    X.w   += stepDistance;
+    X.xyz += (k1 + 2.0*k2 + 2.0*k3 + k4)/6.0;
+    X.w   += timestep;
 
     vec3 c = color(X.xyz, X.w);
 
     gbuf_pos = X;
-    gbuf_vel = vec4(v, 1.0);
-    gbuf_rnd = rnd;
     gbuf_rgb = vec4(c, 1.0);
+    gbuf_rnd = rnd;
 }
 `,
 

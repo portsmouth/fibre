@@ -174,22 +174,25 @@ Fibre.prototype.initField = function()
     // vec3 velocity(vec3 p) {
     //   vec3 v;
     this.glsl.velocity = `
-        const float rho = 8.0;
-        const float sigma = 1.0;
-        const float beta = 8.0/3.0;
-        v.x = sigma*(y - x);
-        v.y = x*(rho - z);
-        v.z = x*y - beta*z;
+        float r = length(p);
+        float r5 = r*r*r*r*r;
+        v.x = 3.0*x*y/r5;
+        v.z = 3.0*y*z/r5;
+        v.y = (2.0*y*y-(x*x+z*z))/r5;
+        if (r < 1.0e-3) v = vec3(0.0);
+        else
+            v = normalize(v);
     `;
 
+    // @todo: color should be time-dependent, for cycling
     // vec3 color(vec3 p) {
     this.glsl.color = `
-        float s = 0.5*(1.0 + cos(2.0*t));
-        c = vec3(s, s, 1.0-s);
+        float l = 0.5*(1.0 + cos(20.0*t));
+        c = vec3(l, l, 1.0-l);
     `;
 
     // bounds will be specified by text fields and in URL, and also via some in-viewport UI
-    this.bounds = new THREE.Box3(new THREE.Vector3(-2, -2, -2), new THREE.Vector3(2, 2, 2));
+    this.bounds = new THREE.Box3(new THREE.Vector3(-0.5, -0.5, -0.5), new THREE.Vector3(0.5, 0.5, 0.5));
     size = new THREE.Vector3();
     this.bounds.size(size);
     let lengthScale = size.length();

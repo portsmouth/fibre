@@ -8,9 +8,8 @@ uniform vec3 boundsMin;
 uniform vec3 boundsMax;
 
 layout(location = 0) out vec4 gbuf_pos;
-layout(location = 1) out vec4 gbuf_vel;
+layout(location = 1) out vec4 gbuf_rgb;
 layout(location = 2) out vec4 gbuf_rnd;
-layout(location = 3) out vec4 gbuf_rgb;
 
 in vec2 vTexCoord;
 
@@ -32,6 +31,19 @@ float rand(inout vec4 rnd)
     rnd = p + beta;
     return fract(dot(rnd/m, vec4(1.0, -1.0, 1.0, -1.0)));
 }
+
+// local emission color, a function of:
+//  - position p
+//  - arclength from start point, s
+vec3 color(vec3 p, float t)
+{
+    vec3 c;
+    float x = p.x;
+    float y = p.y;
+    float z = p.z;
+    COLOR_FIELD
+    return c;
+}    
 
 void main()
 {
@@ -62,7 +74,6 @@ void main()
     }
 
     gbuf_pos = vec4(X, 0.0);
-    gbuf_vel = vec4(0.0, 0.0, 0.0, 1.0);
+    gbuf_rgb = vec4(color(X, 0.0), 1.0);
     gbuf_rnd = seed;
-    gbuf_rgb = vec4(1.0, 1.0, 1.0, 1.0);
 }

@@ -2,60 +2,50 @@
 
 var RayState = function(size)
 {
-	var posData   = new Float32Array(size*size*4); // ray position
-	var dirData   = new Float32Array(size*size*4); // ray direction
-	var rngData   = new Float32Array(size*size*4); // Random number seed
-	var rgbData   = new Float32Array(size*size*4); // Ray color, and wavelength
-
-	for (var i = 0; i<size*size; ++i)
-	{
-		for (var t = 0; t<4; ++t)
-		{
-			dirData[i*4 + t] = 0.0;
-			rgbData[i*4 + t] = Math.random();
-			rngData[i*4 + t] = Math.random()*4194167.0;
-		}
-		dirData[i*4 + 0] = 1.0;
-	}
-
-	this.posTex   = new GLU.Texture(size, size, 4, true, false, true, posData);
-	this.dirTex   = new GLU.Texture(size, size, 4, true, false, true, dirData);
-	this.rngTex   = new GLU.Texture(size, size, 4, true, false, true, rngData);
-	this.rgbTex   = new GLU.Texture(size, size, 4, true, false, true, rgbData);
+    var posData   = new Float32Array(size*size*4); // ray position
+    var rgbData   = new Float32Array(size*size*4); // ray color
+    var rngData   = new Float32Array(size*size*4); // Random number seed
+    for (var i = 0; i<size*size; ++i)
+    {
+        for (var t = 0; t<4; ++t)
+        {
+            rgbData[i*4 + t] = Math.random();
+            rngData[i*4 + t] = Math.random()*4194167.0;
+        }
+    }
+    this.posTex   = new GLU.Texture(size, size, 4, true, false, true, posData);
+    this.rgbTex   = new GLU.Texture(size, size, 4, true, false, true, rgbData);
+    this.rngTex   = new GLU.Texture(size, size, 4, true, false, true, rngData);
 }
 
 RayState.prototype.bind = function(shader)
 {
-	this.posTex.bind(0);
-	this.dirTex.bind(1);
-	this.rngTex.bind(2);
-	this.rgbTex.bind(3);
-	shader.uniformTexture("PosData", this.posTex);
-	shader.uniformTexture("VelData", this.dirTex);
-	shader.uniformTexture("RngData", this.rngTex);
-	shader.uniformTexture("RgbData", this.rgbTex);
+    this.posTex.bind(0);
+    this.rgbTex.bind(1);
+    this.rngTex.bind(2);
+    shader.uniformTexture("PosData", this.posTex);
+    shader.uniformTexture("RgbData", this.rgbTex);
+    shader.uniformTexture("RngData", this.rngTex);
 }
 
 RayState.prototype.attach = function(fbo)
 {
-	var gl = GLU.gl;
-	fbo.attachTexture(this.posTex, 0);
-	fbo.attachTexture(this.dirTex, 1);
-	fbo.attachTexture(this.rngTex, 2);
-	fbo.attachTexture(this.rgbTex, 3);
-	if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE)
-	{
-		GLU.fail("Invalid framebuffer");
-	}
+    var gl = GLU.gl;
+    fbo.attachTexture(this.posTex, 0);
+    fbo.attachTexture(this.rgbTex, 1);
+    fbo.attachTexture(this.rngTex, 2);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE)
+    {
+        GLU.fail("Invalid framebuffer");
+    }
 }
 
 RayState.prototype.detach = function(fbo)
 {
-	var gl = GLU.gl;
-	fbo.detachTexture(0);
-	fbo.detachTexture(1);
-	fbo.detachTexture(2);
-	fbo.detachTexture(3);
+    var gl = GLU.gl;
+    fbo.detachTexture(0);
+    fbo.detachTexture(1);
+    fbo.detachTexture(2);
 }
 
 /**
@@ -75,10 +65,11 @@ var Raytracer = function()
     // Initialize textures containing ray states
     this.raySize = 128;
     this.enabled = true;
+    this.pathLength = 0;
     this.initStates();
 
-    this.maxNumSteps = 256;
-    this.marchDistance = 3.0;
+    this.maxTimeSteps = 256;
+    this.integrationTime = 3.0;
     this.gridSpace = 0.01;
     this.pointSpread = 0.1;
     this.exposure = 3.0;
@@ -187,7 +178,7 @@ Raytracer.prototype.compileShaders = function()
     // shaderSources is a dict from name (e.g. "trace")
     // to a dict {v:vertexShaderSource, f:fragmentShaderSource}
     this.traceProgram = new GLU.Shader('trace', this.shaderSources, replacements);
-    this.initProgram  = new GLU.Shader('init',  this.shaderSources, null);
+    this.initProgram  = new GLU.Shader('init',  this.shaderSources, replacements);
     this.lineProgram  = new GLU.Shader('line',  this.shaderSources, null);
     this.boxProgram   = new GLU.Shader('box',   this.shaderSources, null);
     this.compProgram  = new GLU.Shader('comp',  this.shaderSources, null);
@@ -298,12 +289,12 @@ Raytracer.prototype.render = function()
         gl.clear(gl.COLOR_BUFFER_BIT);
     }
 
-    // Initialize vectors
+    // Initialize ray start points, colors, and random seeds
     {
         gl.disable(gl.BLEND);
         gl.viewport(0, 0, this.raySize, this.raySize);
 
-        this.fbo.drawBuffers(4);
+        this.fbo.drawBuffers(3);
         
         let current = this.currentState;
         let next = 1 - current;
@@ -320,14 +311,14 @@ Raytracer.prototype.render = function()
         this.initProgram.uniformF("pointSpread", this.pointSpread);
 
         this.quadVbo.draw(this.initProgram, gl.TRIANGLE_FAN);
-        this.currentState = 1 - this.currentState; // so emitted ray initial conditions are now the 'current' state
+        this.currentState = 1 - this.currentState;
     }
 
     // Prepare raytracing program
     {
         this.traceProgram.bind();
-        let stepDistance = this.marchDistance / this.maxNumSteps;
-        this.traceProgram.uniformF("stepDistance", stepDistance);
+        let timestep = this.integrationTime / this.maxTimeSteps;
+        this.traceProgram.uniformF("timestep", timestep);
     }
 
     // Prepare line drawing program
@@ -346,7 +337,7 @@ Raytracer.prototype.render = function()
     gl.disable(gl.BLEND);
 
     // Integrate progressively along the wavefront of rays
-    while (this.pathLength < this.maxNumSteps)
+    while (this.pathLength < this.maxTimeSteps)
     {
         let current = this.currentState;
         let next = 1 - current;
@@ -354,7 +345,7 @@ Raytracer.prototype.render = function()
         // Propagate the current set of rays through the vector field, generating new ray pos/dir data in 'next' rayStates textures
         {
             gl.viewport(0, 0, this.raySize, this.raySize);
-            this.fbo.drawBuffers(4);
+            this.fbo.drawBuffers(3);
             this.rayStates[next].attach(this.fbo);
             this.quadVbo.bind();
 
@@ -376,10 +367,12 @@ Raytracer.prototype.render = function()
             this.lineProgram.bind();
             this.rayStates[current].posTex.bind(0); // read PosDataA = current.posTex
             this.rayStates[   next].posTex.bind(1); // read PosDataB = next.posTex
-            this.rayStates[current].rgbTex.bind(2); // read current  = current.rgbTex
+            this.rayStates[current].rgbTex.bind(2); // read RgbDataA = current.rgbTex
+            this.rayStates[   next].rgbTex.bind(3); // read RgbDataB = next.rgbTex
             this.lineProgram.uniformTexture("PosDataA", this.rayStates[current].posTex);
             this.lineProgram.uniformTexture("PosDataB", this.rayStates[   next].posTex);
-            this.lineProgram.uniformTexture("RgbData",  this.rayStates[current].rgbTex);
+            this.lineProgram.uniformTexture("RgbDataA", this.rayStates[current].rgbTex);
+            this.lineProgram.uniformTexture("RgbDataB", this.rayStates[   next].rgbTex);
             this.rayVbo.bind(); // Binds the TexCoord attribute
             this.fbo.attachTexture(this.waveBuffer, 0); // write to wavebuffer
             this.rayVbo.draw(this.lineProgram, gl.LINES, this.raySize*this.raySize*2);
