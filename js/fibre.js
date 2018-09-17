@@ -22,6 +22,8 @@ var Fibre = function()
 
     var text_canvas = document.getElementById('text-canvas');
     this.text_canvas = text_canvas;
+    this.text_canvas.style.width = render_canvas.width;
+    this.text_canvas.style.height = render_canvas.height;
     this.textCtx = text_canvas.getContext("2d");
     this.onFibreLink = false;
     this.onUserLink = false;
@@ -300,24 +302,26 @@ Fibre.prototype.render = function()
 
 Fibre.prototype._resize = function(width, height)
 {
-	this.width = width;
-	this.height = height;
+    this.width = width;
+    this.height = height;
 
-	let render_canvas = this.render_canvas;
-	render_canvas.width  = width;
-	render_canvas.height = height;
-	render_canvas.style.width = width;
-	render_canvas.style.height = height;
+    let render_canvas = this.render_canvas;
+    render_canvas.width  = width;
+    render_canvas.height = height;
+    render_canvas.style.width = width;
+    render_canvas.style.height = height;
 
-	//var text_canvas = this.text_canvas;
-	//text_canvas.width  = width;
-	//text_canvas.height = height
+    var text_canvas = this.text_canvas;
+    text_canvas.width  = width;
+    text_canvas.height = height;
+    text_canvas.style.width = width;
+    text_canvas.style.height = height;
 
-	this.camera.aspect = width / height;
-	this.camera.updateProjectionMatrix();
-	this.camControls.update();
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.camControls.update();
 
-	this.raytracer.resize(width, height);
+    this.raytracer.resize(width, height);
 }
 
 Fibre.prototype.resize = function()
@@ -352,9 +356,9 @@ Fibre.prototype.resize = function()
 			render_canvas.style.width = window_height * render_aspect;
 			render_canvas.style.height = window_height;
 		}
-		//var text_canvas = this.text_canvas;
-		//text_canvas.width = window_width;
-		//text_canvas.height = window_height;
+		var text_canvas = this.text_canvas;
+		text_canvas.width = window_width;
+		text_canvas.height = window_height;
 	}
 }
 

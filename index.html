@@ -51,20 +51,25 @@ font-size:24px;
 <textarea id="textarea-code" name="textarea-code"> 
 </textarea>
 
+<div style='position:relative;'>
 <canvas id='render-canvas' style='
-position:relative;
+position:absolute;
+left: 0; top: 0;
 height: 100%;
 width: 100%;
-z-index:-1;
+z-index:0;
 '></canvas>
-
 <canvas id='text-canvas' style='
 position:relative;
+left: 0; top: 0;
 height: 100%;
 width: 100%;
-z-index:1;
+z-index:0;
 pointer-events: none;  
 '></canvas>
+</div>
+
+
 
 </div>
 
