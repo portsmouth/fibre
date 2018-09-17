@@ -63,12 +63,12 @@ var Raytracer = function()
     var gl = GLU.gl;
 
     // Initialize textures containing ray states
-    this.raySize = 128;
+    this.raySize = 8; //128;
     this.enabled = true;
     this.pathLength = 0;
     this.initStates();
 
-    this.maxTimeSteps = 256;
+    this.maxTimeSteps = 32; //256;
     this.integrationTime = 3.0;
     this.gridSpace = 0.01;
     this.pointSpread = 0.1;

@@ -64,7 +64,6 @@ GUI.prototype.createRaytracerSettings = function()
     this.rendererFolder.add(raytracer, 'exposure', -10.0, 10.0);
     this.rendererFolder.add(raytracer, 'gamma', 0.0, 3.0);
 
-    this.gui.remember(this.raytracerSettings);
     this.rendererFolder.close();
 }
 

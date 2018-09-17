@@ -32,7 +32,10 @@ print '\n******************\nminify code into fibre.min.js ...'
 # Construct the command for Google Closure Compiler, to generate minified code
 jsDestPath = "../js/compiled/fibre.min.js"
 jsSources = [ 
-'../js/thirdparty/jquery-1.11.3.min.js',
+'../js/thirdparty/jquery-3.3.1.min.js',
+'../js/thirdparty/codemirror/codemirror.js',
+'../js/thirdparty/codemirror/codemirror.css.js',
+'../js/thirdparty/codemirror/clike.js',
 '../js/thirdparty/three/three.min.js',
 '../js/thirdparty/three/libs/stats.min.js',
 '../js/thirdparty/three/libs/dat.gui.min.js',

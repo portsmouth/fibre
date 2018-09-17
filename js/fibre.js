@@ -5,50 +5,54 @@
 */
 var Fibre = function()
 {
-	this.initialized = false;
-	this.terminated = false;
-	this.rendering = false;
-	fibre = this;
+    this.initialized = false;
+    this.terminated = false;
+    this.rendering = false;
+    fibre = this;
 
-	let container = document.getElementById("container");
-	this.container = container;
+    let container = document.getElementById("container");
+    this.container = container;
 
-	var render_canvas = document.getElementById('render-canvas');
-	this.render_canvas = render_canvas;
-	this.width = render_canvas.width;
-	this.height = render_canvas.height;
-	render_canvas.style.width = render_canvas.width;
-	render_canvas.style.height = render_canvas.height;
+    var render_canvas = document.getElementById('render-canvas');
+    this.render_canvas = render_canvas;
+    this.width = render_canvas.width;
+    this.height = render_canvas.height;
+    render_canvas.style.width = render_canvas.width;
+    render_canvas.style.height = render_canvas.height;
 
-	var text_canvas = document.getElementById('text-canvas');
-	this.text_canvas = text_canvas;
-	this.textCtx = text_canvas.getContext("2d");
-	this.onFibreLink = false;
-	this.onUserLink = false;
+    var text_canvas = document.getElementById('text-canvas');
+    this.text_canvas = text_canvas;
+    this.textCtx = text_canvas.getContext("2d");
+    this.onFibreLink = false;
+    this.onUserLink = false;
 
-	window.addEventListener( 'resize', this, false );
+    //this.textCtx = null;
 
-	// Setup THREE.js orbit camera
-	var VIEW_ANGLE = 45;
-	var ASPECT = this.width / this.height;
-	var NEAR = 0.05;
-	var FAR = 1000;
-	this.camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
-	this.camera.lookAt(new THREE.Vector3(0.0, 0.0, 0.0));
-	this.camera.position.set(1.0, 1.0, 1.0);
+    window.addEventListener( 'resize', this, false );
 
-	this.camControls = new THREE.OrbitControls(this.camera, this.container);
-	this.camControls.zoomSpeed = 2.0;
-	this.camControls.flySpeed = 0.01;
-	this.camControls.addEventListener('change', camChanged);
-	this.camControls.keyPanSpeed = 100.0;
+    // Setup THREE.js orbit camera
+    var VIEW_ANGLE = 45;
+    var ASPECT = this.width / this.height;
+    var NEAR = 0.05;
+    var FAR = 1000;
+    this.camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
+    this.camera.lookAt(new THREE.Vector3(0.0, 0.0, 0.0));
+    this.camera.position.set(1.0, 1.0, 1.0);
 
-	this.gui = null;
-	this.guiVisible = true;
+    this.camControls = new THREE.OrbitControls(this.camera, this.container);
+    this.camControls.zoomSpeed = 2.0;
+    this.camControls.flySpeed = 0.01;
+    this.camControls.addEventListener('change', camChanged);
+    this.camControls.keyPanSpeed = 100.0;
 
-	// Instantiate raytracer
-	this.raytracer = new Raytracer();
-	this.auto_resize = true;
+    this.camera_active = true;
+
+    this.gui = null;
+    this.guiVisible = true;
+
+    // Instantiate raytracer
+    this.raytracer = new Raytracer();
+    this.auto_resize = true;
 
     // Initialize field
     this.initField()
@@ -174,14 +178,12 @@ Fibre.prototype.initField = function()
     // vec3 velocity(vec3 p) {
     //   vec3 v;
     this.glsl.velocity = `
-        float r = length(p);
-        float r5 = r*r*r*r*r;
-        v.x = 3.0*x*y/r5;
-        v.z = 3.0*y*z/r5;
-        v.y = (2.0*y*y-(x*x+z*z))/r5;
-        if (r < 1.0e-3) v = vec3(0.0);
-        else
-            v = normalize(v);
+    const float rho = 1.0;
+    const float sigma = 1.0;
+    const float beta = 1.0;
+    v.x = sigma*(y - x);
+    v.y = x*(rho - z);
+    v.z = x*y - beta*z;
     `;
 
     // @todo: color should be time-dependent, for cycling
@@ -258,33 +260,37 @@ Fibre.prototype.render = function()
     this.raytracer.render();
 
     // Update HUD text canvas
-    this.textCtx.textAlign = "left";   	// This determines the alignment of text, e.g. left, center, right
-    this.textCtx.textBaseline = "middle";	// This determines the baseline of the text, e.g. top, middle, bottom
-    this.textCtx.font = '12px monospace';	// This determines the size of the text and the font family used
-    this.textCtx.clearRect(0, 0, this.textCtx.canvas.width, this.textCtx.canvas.height);
-    this.textCtx.globalAlpha = 0.95;
-    this.textCtx.strokeStyle = 'black';
-    this.textCtx.lineWidth  = 2;
-    if (this.guiVisible)
-    {
-        if (this.onFibreLink) this.textCtx.fillStyle = "#ff5500";
-        else                  this.textCtx.fillStyle = "#ffff00";
-        let ver = this.getVersion();
-        this.textCtx.strokeText('Fibre v'+ver[0]+'.'+ver[1]+'.'+ver[2], 14, 20);
-        this.textCtx.fillText('Fibre v'+ver[0]+'.'+ver[1]+'.'+ver[2], 14, 20);
-        
-        if (this.sceneName != '')
+    if (this.textCtx)
+    {    
+        this.textCtx.textAlign = "left";   	// This determines the alignment of text, e.g. left, center, right
+        this.textCtx.textBaseline = "middle";	// This determines the baseline of the text, e.g. top, middle, bottom
+        this.textCtx.font = '12px monospace';	// This determines the size of the text and the font family used
+        this.textCtx.clearRect(0, 0, this.textCtx.canvas.width, this.textCtx.canvas.height);
+        this.textCtx.globalAlpha = 0.95;
+        this.textCtx.strokeStyle = 'black';
+        this.textCtx.lineWidth  = 2;
+        if (this.guiVisible)
         {
-            this.textCtx.fillStyle = "#ffaa22";
-            this.textCtx.strokeText(this.sceneName, 14, this.textCtx.canvas.height-25);
-            this.textCtx.fillText(this.sceneName, 14, this.textCtx.canvas.height-25);
-        }
-        if (this.sceneURL != '')
-        {
-            if (this.onUserLink) this.textCtx.fillStyle = "#aaccff";
-            else                 this.textCtx.fillStyle = "#55aaff";
-            this.textCtx.strokeText(this.sceneURL, 14, this.textCtx.canvas.height-40);
-            this.textCtx.fillText(this.sceneURL, 14, this.textCtx.canvas.height-40);
+            if (this.onFibreLink) this.textCtx.fillStyle = "#ff5500";
+            else                  this.textCtx.fillStyle = "#ffff00";
+            let ver = this.getVersion();
+            let linkWidth = this.textCtx.measureText('Fibre vX.X.X').width;
+            this.textCtx.strokeText('Fibre v'+ver[0]+'.'+ver[1]+'.'+ver[2], this.textCtx.canvas.width - linkWidth - 14, this.textCtx.canvas.height-20);
+            this.textCtx.fillText('Fibre v'+ver[0]+'.'+ver[1]+'.'+ver[2], this.textCtx.canvas.width - linkWidth - 14, this.textCtx.canvas.height-20);
+            
+            if (this.sceneName != '')
+            {
+                this.textCtx.fillStyle = "#ffaa22";
+                this.textCtx.strokeText(this.sceneName, 14, this.textCtx.canvas.height-25);
+                this.textCtx.fillText(this.sceneName, 14, this.textCtx.canvas.height-25);
+            }
+            if (this.sceneURL != '')
+            {
+                if (this.onUserLink) this.textCtx.fillStyle = "#aaccff";
+                else                 this.textCtx.fillStyle = "#55aaff";
+                this.textCtx.strokeText(this.sceneURL, 14, this.textCtx.canvas.height-40);
+                this.textCtx.fillText(this.sceneURL, 14, this.textCtx.canvas.height-40);
+            }
         }
     }
 
@@ -303,9 +309,9 @@ Fibre.prototype._resize = function(width, height)
 	render_canvas.style.width = width;
 	render_canvas.style.height = height;
 
-	var text_canvas = this.text_canvas;
-	text_canvas.width  = width;
-	text_canvas.height = height
+	//var text_canvas = this.text_canvas;
+	//text_canvas.width  = width;
+	//text_canvas.height = height
 
 	this.camera.aspect = width / height;
 	this.camera.updateProjectionMatrix();
@@ -346,53 +352,67 @@ Fibre.prototype.resize = function()
 			render_canvas.style.width = window_height * render_aspect;
 			render_canvas.style.height = window_height;
 		}
-		var text_canvas = this.text_canvas;
-		text_canvas.width = window_width;
-		text_canvas.height = window_height;
+		//var text_canvas = this.text_canvas;
+		//text_canvas.width = window_width;
+		//text_canvas.height = window_height;
 	}
 }
 
 
 Fibre.prototype.onClick = function(event)
 {
-	if (this.onFibreLink)
-	{
-    	window.location = "https://github.com/portsmouth/fibre";
+    if (!this.camera_active) return;
+
+    if (this.onFibreLink)
+    {
+        window.open("https://github.com/portsmouth/fibre");
     }
     if (this.onUserLink)
-	{
-    	window.location = this.sceneURL;
+    {
+        window.open(this.sceneURL);
     }
-	event.preventDefault();
+    event.preventDefault();
 }
 
 Fibre.prototype.onDocumentMouseMove = function(event)
 {
-	// Check whether user is trying to click the Fibre home link, or user link
-	var textCtx = this.textCtx;
-	var x = event.pageX;
-    var y = event.pageY;
-	let linkWidth = this.textCtx.measureText('Fibre vX.X.X').width;
-	if (x>14 && x<14+linkWidth && y>15 && y<25) this.onFibreLink = true;
-	else this.onFibreLink = false;
-	if (this.sceneURL != '')
-	{
-		linkWidth = this.textCtx.measureText(this.sceneURL).width;
-		if (x>14 && x<14+linkWidth && y>this.height-45 && y<this.height-35) this.onUserLink = true;
-		else this.onUserLink = false;
-	}
+    if (!this.camera_active) return;
 
-	this.camControls.update();
+    // Check whether user is trying to click the Fibre home link, or user link
+    var textCtx = this.textCtx;
+    if (textCtx)
+    {    
+        var x = event.pageX;
+        var y = event.pageY;
+        let linkWidth = this.textCtx.measureText('Fibre vX.X.X').width;
+
+        let xmin = this.textCtx.canvas.width - linkWidth - 14;
+        let xmax = xmin + linkWidth;
+        let ymin = this.textCtx.canvas.height-25;
+        let ymax = this.textCtx.canvas.height-10;
+        if (x>=xmin && x<=xmax && y>=ymin && y<=ymax) this.onFibreLink = true;
+        else this.onFibreLink = false;
+        if (this.sceneURL != '')
+        {
+            linkWidth = this.textCtx.measureText(this.sceneURL).width;
+            if (x>14 && x<14+linkWidth && y>this.height-45 && y<this.height-35) this.onUserLink = true;
+            else this.onUserLink = false;
+        }
+    }
+
+    this.camControls.update();
 }
 
 Fibre.prototype.onDocumentMouseDown = function(event)
 {
-	this.camControls.update();
+    if (!this.camera_active) return;
+    this.camControls.update();
 }
 
 Fibre.prototype.onDocumentMouseUp = function(event)
 {
-	this.camControls.update();
+    if (!this.camera_active) return;
+    this.camControls.update();
 }
 
 Fibre.prototype.onDocumentRightClick = function(event)
@@ -400,118 +420,136 @@ Fibre.prototype.onDocumentRightClick = function(event)
 
 }
 
+Fibre.prototype.camera_enable = function()
+{
+    console.log('enable camera');
+    this.camera_active = true;
+}
+
+Fibre.prototype.camera_disable = function()
+{
+    console.log('disable camera');
+    this.camera_active = false;
+}  
+
 Fibre.prototype.onkeydown = function(event)
 {
-	var charCode = (event.which) ? event.which : event.keyCode;
-	switch (charCode)
-	{
-		case 122: // F11 key: go fullscreen
-			var element	= document.body;
-			if      ( 'webkitCancelFullScreen' in document ) element.webkitRequestFullScreen();
-			else if ( 'mozCancelFullScreen'    in document ) element.mozRequestFullScreen();
-			else console.assert(false);
-			break;
+    console.log('Fibre.prototype.onkeydown');
+    var charCode = (event.which) ? event.which : event.keyCode;
+    switch (charCode)
+    {
+        case 122: // F11 key: go fullscreen
+            var element	= document.body;
+            if      ( 'webkitCancelFullScreen' in document ) element.webkitRequestFullScreen();
+            else if ( 'mozCancelFullScreen'    in document ) element.mozRequestFullScreen();
+            else console.assert(false);
+            break;
 
-		case 70: // F key: reset cam  (@todo)
-			this.camera.position.copy(this.initial_camera_position);
-			this.camControls.target.copy(this.initial_camera_target);
-			this.reset(true);
-			break;
+        case 70: // F key: reset cam  
+            if (!this.camControls.enabled) break;
+            this.camera.position.copy(this.initial_camera_position);
+            this.camControls.target.copy(this.initial_camera_target);
+            this.reset(true);
+            break;
 
-		case 82: // R key: reset scene
-			break;
+        case 72: // H key: toggle hide/show dat gui
+            if (!this.camControls.enabled) break;
+            this.guiVisible = !this.guiVisible;
+            fibre.getGUI().toggleHide();
+            break;
+        
+        case 79: // O key: output scene settings code to console
+            let code = this.dumpScene();
+            console.log(code);
+            break;
 
-		case 72: // H key: toggle hide/show dat gui
-			this.guiVisible = !this.guiVisible;
-			fibre.getGUI().toggleHide();
-			break;
-		
-		case 79: // O key: output scene settings code to console
-			let code = this.dumpScene();
-			console.log(code);
-			break;
+        case 80: // P key: save current image to disk
+        {
+            var w = window.open('about:blank', 'Fibre screenshot');
+            let dataURL = this.render_canvas.toDataURL("image/png");
+            w.document.write("<img src='"+dataURL+"' alt='from canvas'/>");
+            break;
+        }
 
-		case 80: // P key: save current image to disk
-		{
-   			var w = window.open('about:blank', 'Fibre screenshot');
-   			let dataURL = this.render_canvas.toDataURL("image/png");
-   			w.document.write("<img src='"+dataURL+"' alt='from canvas'/>");
-			break;
-		}
-
-		case 87: // W key: cam forward
-		{
-			let toTarget = new THREE.Vector3();
-			toTarget.copy(this.camControls.target);
-			toTarget.sub(this.camera.position);
-			let distToTarget = toTarget.length();
-			toTarget.normalize();
-			var move = new THREE.Vector3();
-			move.copy(toTarget);
-			move.multiplyScalar(this.camControls.flySpeed*distToTarget);
-			this.camera.position.add(move);
-			this.camControls.target.add(move);
-			this.reset(true);
-			break;
-		}
-		
-		case 65: // A key: cam left
-		{
-			let toTarget = new THREE.Vector3();
-			toTarget.copy(this.camControls.target);
-			toTarget.sub(this.camera.position);
-			let distToTarget = toTarget.length();
-			var localX = new THREE.Vector3(1.0, 0.0, 0.0);
-			var worldX = localX.transformDirection( this.camera.matrix );
-			var move = new THREE.Vector3();
-			move.copy(worldX);
-			move.multiplyScalar(-this.camControls.flySpeed*distToTarget);
-			this.camera.position.add(move);
-			this.camControls.target.add(move);
-			this.reset(true);
-			break;
-		}
-		
-		case 83: // S key: cam back
-		{
-			let toTarget = new THREE.Vector3();
-			toTarget.copy(this.camControls.target);
-			toTarget.sub(this.camera.position);
-			let distToTarget = toTarget.length();
-			toTarget.normalize();
-			var move = new THREE.Vector3();
-			move.copy(toTarget);
-			move.multiplyScalar(-this.camControls.flySpeed*distToTarget);
-			this.camera.position.add(move);
-			this.camControls.target.add(move);
-			this.reset(true);
-			break;
-		}
-		
-		case 68: // D key: cam right
-		{
-			let toTarget = new THREE.Vector3();
-			toTarget.copy(this.camControls.target);
-			toTarget.sub(this.camera.position);
-			let distToTarget = toTarget.length();
-			var localX = new THREE.Vector3(1.0, 0.0, 0.0);
-			var worldX = localX.transformDirection( this.camera.matrix );
-			var move = new THREE.Vector3();
-			move.copy(worldX);
-			move.multiplyScalar(this.camControls.flySpeed*distToTarget);
-			this.camera.position.add(move);
-			this.camControls.target.add(move);
-			this.reset(true);
-			break;
-		}
+        case 87: // W key: cam forward
+        {
+            if (!this.camControls.enabled) break;
+            let toTarget = new THREE.Vector3();
+            toTarget.copy(this.camControls.target);
+            toTarget.sub(this.camera.position);
+            let distToTarget = toTarget.length();
+            toTarget.normalize();
+            var move = new THREE.Vector3();
+            move.copy(toTarget);
+            move.multiplyScalar(this.camControls.flySpeed*distToTarget);
+            this.camera.position.add(move);
+            this.camControls.target.add(move);
+            this.reset(true);
+            break;
+        }
+        
+        case 65: // A key: cam left
+        {
+            if (!this.camControls.enabled) break;
+            let toTarget = new THREE.Vector3();
+            toTarget.copy(this.camControls.target);
+            toTarget.sub(this.camera.position);
+            let distToTarget = toTarget.length();
+            var localX = new THREE.Vector3(1.0, 0.0, 0.0);
+            var worldX = localX.transformDirection( this.camera.matrix );
+            var move = new THREE.Vector3();
+            move.copy(worldX);
+            move.multiplyScalar(-this.camControls.flySpeed*distToTarget);
+            this.camera.position.add(move);
+            this.camControls.target.add(move);
+            this.reset(true);
+            break;
+        }
+        
+        case 83: // S key: cam back
+        {
+            if (!this.camControls.enabled) break;
+            let toTarget = new THREE.Vector3();
+            toTarget.copy(this.camControls.target);
+            toTarget.sub(this.camera.position);
+            let distToTarget = toTarget.length();
+            toTarget.normalize();
+            var move = new THREE.Vector3();
+            move.copy(toTarget);
+            move.multiplyScalar(-this.camControls.flySpeed*distToTarget);
+            this.camera.position.add(move);
+            this.camControls.target.add(move);
+            this.reset(true);
+            break;
+        }
+        
+        case 68: // D key: cam right
+        {
+            if (!this.camControls.enabled) break;
+            let toTarget = new THREE.Vector3();
+            toTarget.copy(this.camControls.target);
+            toTarget.sub(this.camera.position);
+            let distToTarget = toTarget.length();
+            var localX = new THREE.Vector3(1.0, 0.0, 0.0);
+            var worldX = localX.transformDirection( this.camera.matrix );
+            var move = new THREE.Vector3();
+            move.copy(worldX);
+            move.multiplyScalar(this.camControls.flySpeed*distToTarget);
+            this.camera.position.add(move);
+            this.camControls.target.add(move);
+            this.reset(true);
+            break;
+        }
 	}
 }
 
 function camChanged()
 {
-	if (!fibre.rendering)
-	{
-		var no_recompile = true;
-		fibre.reset(no_recompile);
-	}
+    //if (!this.camera_active) return;
+    console.log('cam changed');
+    //if (!fibre.rendering)
+    {
+        var no_recompile = true;
+        fibre.reset(no_recompile);
+    }
 }

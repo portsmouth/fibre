@@ -9,43 +9,47 @@ var GLU = {};
 
 (function() {
 
-	///////////////////////////////////////////////////
-	// GLU namespace functions
-	///////////////////////////////////////////////////
+    ///////////////////////////////////////////////////
+    // GLU namespace functions
+    ///////////////////////////////////////////////////
 
-	this.setupGL = function()
-	{
-		try 
-		{
-			var gl = this.canvas.getContext("webgl2", {preserveDrawingBuffer: true});
-		} catch (e) {}
-		if (!gl) this.fail("Could not initialise WebGL");
-		this.gl = gl;
+    this.setupGL = function(canvas)
+    {
+        this.canvas = canvas;
+        try 
+        {
+            var gl = this.canvas.getContext("webgl2", {preserveDrawingBuffer: true});
+        } catch (e) {
+            this.fail(e.message + ". This can't run in your browser.");
+        }
+        if (!gl) this.fail("Could not initialise WebGL");
+        this.gl = gl;
+        var gl = this.gl;
 
-		//console.log('Supported webGL extensions: ' + gl.getSupportedExtensions());
-		this.floatBufExt = gl.getExtension("EXT_color_buffer_float");
-		this.floatLinExt = gl.getExtension("OES_texture_float_linear");
-		if (!this.floatBufExt || !this.floatLinExt) this.fail("Your platform does not support float textures");
-	}
+        //console.log('Supported webGL extensions: ' + gl.getSupportedExtensions());
+        this.floatBufExt = gl.getExtension("EXT_color_buffer_float");
+        this.floatLinExt = gl.getExtension("OES_texture_float_linear");
+        if (!this.floatBufExt || !this.floatLinExt) this.fail("Your platform does not support float textures");
+    }
 
-	this.glTypeSize = function(type) 
-	{
-		switch (type) 
-		{
-			case gl.BYTE:
-			case gl.UNSIGNED_BYTE:
-			    return 1;
-			case gl.SHORT:
-			case gl.UNSIGNED_SHORT:
-			    return 2;
-			case gl.INT:
-			case gl.UNSIGNED_INT:
-			case gl.FLOAT:
-			    return 4;
-			default:
-			    return 0;
-		}
-	}
+    this.glTypeSize = function(type) 
+    {
+        switch (type) 
+        {
+            case gl.BYTE:
+            case gl.UNSIGNED_BYTE:
+                return 1;
+            case gl.SHORT:
+            case gl.UNSIGNED_SHORT:
+                return 2;
+            case gl.INT:
+            case gl.UNSIGNED_INT:
+            case gl.FLOAT:
+                return 4;
+            default:
+                return 0;
+        }
+    }
 
 	// We assume here a global Shaders object has been defined, which
 	// maps names like foo-vertex-shader, foo-fragment-shader to the respective code for shader name foo.
@@ -543,23 +547,26 @@ var GLU = {};
     }
 
     // Create CSS rules for the document contents
+    /*
     let style = document.createElement("style");
     style.appendChild(document.createTextNode("")); // WebKit hack :(
     document.head.appendChild(style);
     let sheet = window.document.styleSheets[0];
 
-	sheet.insertRule(`body{
+    sheet.insertRule(`body {
   margin: 0px;
   overflow: hidden;
 }`, sheet.cssRules.length);
 
-	sheet.insertRule(`#container {
+    sheet.insertRule(`#container {
     position: relative;
     margin: 0px;
     padding: 0px;
 }`, sheet.cssRules.length);
+*/
 
-	sheet.insertRule(`#textContainer {
+/*
+    sheet.insertRule(`#textContainer {
     position: absolute;
     margin: 0px;
     overflow: hidden;
@@ -568,25 +575,58 @@ var GLU = {};
     pointer-events: none;   
     z-index: 1;
 }`, sheet.cssRules.length);
+*/
 
-	sheet.insertRule(`#gui { 
-    position: absolute; 
-    z-index: 100;
-    right: 0px;
+    /*
+    sheet.insertRule(`#render-canvas {
+    height: 100%;
+    width: 100%;
+    z-index:-1;
+    position:relative;
 }`, sheet.cssRules.length);
 
-	// Create here the DOM elements for renderer and text canvas
-	var container = document.createElement("div");
-	container.id = "container";
-	document.body.appendChild(container);
+    sheet.insertRule(`#toggle-code-button {
+    position:absolute;
+    z-index:2;
+    border:none;
+    margin-left:5px;
+    padding:8;
+    outline:0;
+    width: 10px;
+    height: 10px;
+    box-shadow:none!important;
+    background:none;
+    color:rgb(216, 155, 63);
+    font-size:24px;
+}`, sheet.cssRules.length);
 
-	var render_canvas = document.createElement('canvas');
-	render_canvas.id = "render-canvas";
-	render_canvas.width  = window.innerWidth;
-	render_canvas.height = window.innerHeight;
-	container.appendChild(render_canvas);
-	this.canvas = render_canvas;
+    // Create here the DOM elements for renderer and text canvas
+    var container = document.createElement("div");
+    container.id = "container";
+    document.body.appendChild(container);
 
+    var toggle_code_button = document.createElement("button");
+    toggle_code_button.innerHTML = '+';
+    toggle_code_button.id = "toggle-code-button";
+    container.appendChild(toggle_code_button);
+
+    var code_textarea = document.createElement('textarea');
+    code_textarea.id = "textarea-code";
+    var styleElement = document.createElement('style');
+    styleElement.appendChild(document.createTextNode(codemirror_css_rules));
+    //let code_textarea = document.getElementById("textarea-code");
+    code_textarea.appendChild(styleElement);
+    container.appendChild(code_textarea);
+
+    var render_canvas = document.createElement('canvas');
+    render_canvas.id = "render-canvas";
+    render_canvas.width  = window.innerWidth;
+    render_canvas.height = window.innerHeight;
+    container.appendChild(render_canvas);
+    this.canvas = render_canvas;
+    */
+
+    /*
 	var textContainer = document.createElement("div");
 	textContainer.id = "textContainer";
 	container.appendChild(textContainer);
@@ -594,18 +634,9 @@ var GLU = {};
 	var text_canvas = document.createElement('canvas');
 	text_canvas.id = "text-canvas";
 	textContainer.appendChild(text_canvas);
+        */
+ 
 
-	try 
-	{
-		this.setupGL();
-	}
-	catch (e) 
-	{
-		this.fail(e.message + ". This can't run in your browser.");
-		return;
-	}
-
-	var gl = this.gl;
 
 }).apply(GLU);  
 

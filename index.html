@@ -1,8 +1,15 @@
    
-<body onload="onLoad();">
+<body onload="onLoad();" style="
+margin: 0px;
+overflow: hidden;
+height: 100%;
+width: 100%;
+background-size: 100%;">
 
-<script src='./js/thirdparty/jquery-1.11.3.min.js'></script>
-<script src='./js/thirdparty/jquery-1.11.3.min.js'></script>
+<script src='./js/thirdparty/jquery-3.3.1.min.js'></script>
+<script src='./js/thirdparty/codemirror/codemirror.js'></script>
+<script src='./js/thirdparty/codemirror/codemirror.css.js'></script>
+<script src='./js/thirdparty/codemirror/clike.js'></script>
 <script src='./js/thirdparty/three/three.min.js'></script>
 <script src='./js/thirdparty/three/libs/stats.min.js'></script>
 <script src='./js/thirdparty/three/libs/dat.gui.min.js'></script>
@@ -18,9 +25,150 @@
 <?/*                            main loop                              */?>
 <?/* ------------------------------------------------------------------*/?>
 
+
+<div id='container' style='
+position: relative;
+margin: 0px;
+padding: 0px;
+'>
+
+<button id='toggle-code-button' style='
+position:absolute;
+z-index:2;
+border:none;
+top: 0px;
+margin-left:5px;
+padding:8;
+outline:0;
+width: 10px;
+height: 10px;
+box-shadow:none!important;
+background:none;
+color:rgb(216, 155, 63);
+font-size:24px;
+'>☰</button>
+
+<textarea id="textarea-code" name="textarea-code"> 
+</textarea>
+
+<canvas id='render-canvas' style='
+position:relative;
+height: 100%;
+width: 100%;
+z-index:-1;
+'></canvas>
+
+<canvas id='text-canvas' style='
+position:relative;
+height: 100%;
+width: 100%;
+z-index:1;
+pointer-events: none;  
+'></canvas>
+
+</div>
+
+
+
+
+
 <script type="text/javascript">
-function onLoad() { fibre = new Fibre(); animateLoop(); }
-function animateLoop() { fibre.render(); window.requestAnimationFrame(animateLoop); }
+
+/*
+
+*/
+
+function onLoad() 
+{ 
+    let canvas = document.getElementById("render-canvas");
+    GLU.setupGL(canvas);
+    gl = GLU.gl;
+
+    var styleElement = document.createElement('style');
+    styleElement.appendChild(document.createTextNode(codemirror_css_rules));
+    document.getElementsByTagName('head')[0].appendChild(styleElement);
+
+    let code_textarea = document.getElementById("textarea-code");
+
+    editor = CodeMirror(function(elt) {
+        code_textarea.parentNode.replaceChild(elt, code_textarea);
+    }, {
+        lineNumbers: true,
+        extraKeys: {"Ctrl-Space": "autocomplete"},
+        viewportMargin: Infinity,
+        mode: "x-shader/x-fragment"
+    });
+    editor.setOption("theme", 'lucario');
+
+    editor.setValue(`
+
+///////////////////////////////////////////
+// Some demonstration code
+///////////////////////////////////////////
+
+uniform float f; // auto-creates a float slider, driving this parameter
+uniform vec3 c;  // auto-creates a color slider, driving this parameter
+
+vec3 velocity(vec3 p, float t)
+{
+    vec3 v;
+    float x = p.x;
+    float y = p.y;
+    float z = p.z;
+    const float rho = 8.0;
+    const float sigma = 1.0;
+    const float beta = 8.0/3.0;
+    v.x = sigma*(y - x);
+    v.y = x*(rho - z);
+    v.z = x*y - beta*z;
+    return v;
+}    
+
+vec3 color(vec3 p, float t)
+{
+    float l = 0.5*(1.0 + cos(20.0*t));
+    return vec3(l, l, 1.0-l);
+    return c;
+}  
+`);
+
+    
+
+    fibre = new Fibre(); 
+
+    var cmEl = document.querySelector('.CodeMirror');
+
+    cmEl.addEventListener('mouseleave', function(e) {
+        console.log('mouseleave');
+        fibre.camControls.enabled = true;
+    });
+
+    cmEl.addEventListener('mouseenter', function(e) {
+        console.log('mouseenter');
+        fibre.camControls.enabled = false;
+    });
+
+    animateLoop(); 
+}
+
+function animateLoop() 
+{ 
+    fibre.render(); 
+    window.requestAnimationFrame(animateLoop); 
+}
+
+
+$(document).ready(function()
+{
+    $('#div-code').hide();
+
+    $("#toggle-code-button").click(function(){
+
+        $('.CodeMirror').fadeToggle(1000);
+        console.log('helo');
+    });
+});
+
 </script>
 
 </body>
