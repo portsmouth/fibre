@@ -368,11 +368,12 @@ span.CodeMirror-selectedtext { background: none; }
 .cm-s-lucario.CodeMirror, .cm-s-lucario .CodeMirror-gutters {
   background-color: #2b3e50 !important;
   color: #f8f8f2 !important;
-  border: none;
 }
 .cm-s-lucario .CodeMirror-gutters { color: #2b3e50; }
+.cm-s-lucario .CodeMirror-guttermarker { color: #599eff; }
+.cm-s-lucario .CodeMirror-guttermarker-subtle { color: #777; }
 .cm-s-lucario .CodeMirror-cursor { border-left: solid thin #E6C845; }
-.cm-s-lucario .CodeMirror-linenumber { color: #f8f8f2; }
+.cm-s-lucario .CodeMirror-linenumber { color: #72C05D; }
 .cm-s-lucario .CodeMirror-selected { background: #243443; }
 .cm-s-lucario .CodeMirror-line::selection, .cm-s-lucario .CodeMirror-line > span::selection, .cm-s-lucario .CodeMirror-line > span > span::selection { background: #243443; }
 .cm-s-lucario .CodeMirror-line::-moz-selection, .cm-s-lucario .CodeMirror-line > span::-moz-selection, .cm-s-lucario .CodeMirror-line > span > span::-moz-selection { background: #243443; }
