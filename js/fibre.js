@@ -48,6 +48,7 @@ var Fibre = function()
     this.camControls.keyPanSpeed = 100.0;
 
     this.camera_active = true;
+    this.boundsHit = null;
 
     this.gui = null;
     this.guiVisible = true;
@@ -171,7 +172,6 @@ Fibre.prototype.getGlsl= function()
     return this.glsl;
 }
 
-
 Fibre.prototype.initField = function()
 {
     this.glsl = {};
@@ -244,6 +244,64 @@ Fibre.prototype.reset = function(no_recompile = false)
 	if (!this.initialized || this.terminated) return;
 	this.raytracer.reset(no_recompile);
 }
+
+Fibre.prototype.sphereIntersect = function(ray, center, radius)
+{
+    let o = ray.origin.clone();
+    o.sub(center);
+    let d = ray.direction;
+    let r = radius;
+    let od = o.dot(d);
+    let o2 = o.dot(o);
+    let det2 = od*od - o2 + r*r;
+    if (det2 < 0.0) return false;
+    return true;
+}
+
+
+Fibre.prototype.boundsRaycast = function(u, v)
+{
+    // takes pixel uv location as input
+    let dir = new THREE.Vector3();
+    dir.set(u*2 - 1,
+           -v*2 + 1,
+            0.5 );
+    dir.unproject(this.camera);
+    dir.sub(this.camera.position).normalize();
+    let ray = {origin:this.camera.position, direction: dir};
+
+    bounds = this.getBounds();
+    boundsMin = bounds.min;
+    boundsMax = bounds.max;
+    let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+    let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+    let size = Math.max(e[0], e[1], e[2]);
+
+    let cornerR = 0.05*size;
+    var corners = [
+        [o[0],        o[1],        o[2]],
+        [o[0] + e[0], o[1],        o[2]],
+        [o[0]       , o[1] + e[1], o[2]],
+        [o[0] + e[0], o[1] + e[1], o[2]],
+        [o[0],        o[1],        o[2] + e[2]],
+        [o[0] + e[0], o[1],        o[2] + e[2]],
+        [o[0]       , o[1] + e[1], o[2] + e[2]],
+        [o[0] + e[0], o[1] + e[1], o[2] + e[2]]
+	];
+
+    for (i = 0; i<corners.length; i++)
+    {
+        let c = corners[i];
+        let C = new THREE.Vector3(c[0], c[1], c[2]);
+         if ( this.sphereIntersect(ray, C, cornerR) )
+         {
+             return {hit: true, type: 'corner', index: i};
+         }
+    }
+
+    return {hit: false};
+}
+
    
 // Render all
 Fibre.prototype.render = function()
@@ -381,6 +439,12 @@ Fibre.prototype.onClick = function(event)
 Fibre.prototype.onDocumentMouseMove = function(event)
 {
     if (!this.camera_active) return;
+
+    // Check for bounds interaction
+    let u = event.clientX/window.innerWidth;
+    let v = event.clientY/window.innerHeight;
+    this.boundsHit = this.boundsRaycast(u, v);
+
 
     // Check whether user is trying to click the Fibre home link, or user link
     var textCtx = this.textCtx;
@@ -549,7 +613,6 @@ Fibre.prototype.onkeydown = function(event)
 
 function camChanged()
 {
-    //if (!this.camera_active) return;
     console.log('cam changed');
     //if (!fibre.rendering)
     {

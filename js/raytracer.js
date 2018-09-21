@@ -427,6 +427,33 @@ Raytracer.prototype.render = function()
         }
         this.boxVbo.bind();
         this.boxVbo.draw(this.boxProgram, gl.LINES);
+
+        // Draw corner highlights if mouse-over is active
+        let boundsHit = fibre.boundsHit;
+        if (boundsHit && boundsHit.hit)
+        {
+            if (boundsHit.type == 'corner')
+            {
+                let corner_index = boundsHit.index;
+
+                let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+                let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+                var corners = [
+                    [o[0],        o[1],        o[2]],
+                    [o[0] + e[0], o[1],        o[2]],
+                    [o[0]       , o[1] + e[1], o[2]],
+                    [o[0] + e[0], o[1] + e[1], o[2]],
+                    [o[0],        o[1],        o[2] + e[2]],
+                    [o[0] + e[0], o[1],        o[2] + e[2]],
+                    [o[0]       , o[1] + e[1], o[2] + e[2]],
+                    [o[0] + e[0], o[1] + e[1], o[2] + e[2]]
+                ];
+
+                let C = corners[corner_index];
+                console.log('corner hit: ', C);
+            }
+        }
+
     }
 
     this.wavesTraced += 1;
