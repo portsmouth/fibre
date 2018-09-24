@@ -57,7 +57,7 @@ GUI.prototype.createRaytracerSettings = function()
 
     this.rendererFolder.add(raytracer, 'maxTimeSteps', 4, 4096).onChange( function(value) { raytracer.maxTimeSteps = Math.floor(value); raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'raySize', 4, 1024).onChange( function(value) { raytracer.raySize = Math.floor(value); raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer, 'integrationTime', 0.0, 1000.0).onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'integrationTime', 0.1, 1000.0).onChange( function(value) { raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'gridSpace', 0.0, 1.0).onChange( function(value) { raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'pointSpread', 0.0, 1.0).onChange( function(value) { raytracer.reset(true); } );
 

@@ -7,6 +7,8 @@
  */
 var GLU = {};
 
+var gl;
+
 (function() {
 
     ///////////////////////////////////////////////////
@@ -16,15 +18,16 @@ var GLU = {};
     this.setupGL = function(canvas)
     {
         this.canvas = canvas;
+        let _gl;
         try 
         {
-            var gl = this.canvas.getContext("webgl2", {preserveDrawingBuffer: true});
+            _gl = this.canvas.getContext("webgl2", {preserveDrawingBuffer: true});
         } catch (e) {
             this.fail(e.message + ". This can't run in your browser.");
         }
-        if (!gl) this.fail("Could not initialise WebGL");
-        this.gl = gl;
-        var gl = this.gl;
+        if (!_gl) this.fail("Could not initialise WebGL");
+        this.gl = _gl;
+        gl = _gl;
 
         //console.log('Supported webGL extensions: ' + gl.getSupportedExtensions());
         this.floatBufExt = gl.getExtension("EXT_color_buffer_float");
@@ -339,6 +342,11 @@ var GLU = {};
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.glName);
 	}
 
+	this.VertexBuffer.prototype.delete = function()
+	{
+		gl.deleteBuffer(this.glName);
+	}
+
 	this.VertexBuffer.prototype.addAttribute = function(name, size, type, norm)
 	{
 		this.attributes.push({
@@ -545,97 +553,6 @@ var GLU = {};
         fibre.terminated = true;
         throw new Error("Terminating Fibre");
     }
-
-    // Create CSS rules for the document contents
-    /*
-    let style = document.createElement("style");
-    style.appendChild(document.createTextNode("")); // WebKit hack :(
-    document.head.appendChild(style);
-    let sheet = window.document.styleSheets[0];
-
-    sheet.insertRule(`body {
-  margin: 0px;
-  overflow: hidden;
-}`, sheet.cssRules.length);
-
-    sheet.insertRule(`#container {
-    position: relative;
-    margin: 0px;
-    padding: 0px;
-}`, sheet.cssRules.length);
-*/
-
-/*
-    sheet.insertRule(`#textContainer {
-    position: absolute;
-    margin: 0px;
-    overflow: hidden;
-    left: 0px;
-    top: 0px;
-    pointer-events: none;   
-    z-index: 1;
-}`, sheet.cssRules.length);
-*/
-
-    /*
-    sheet.insertRule(`#render-canvas {
-    height: 100%;
-    width: 100%;
-    z-index:-1;
-    position:relative;
-}`, sheet.cssRules.length);
-
-    sheet.insertRule(`#toggle-code-button {
-    position:absolute;
-    z-index:2;
-    border:none;
-    margin-left:5px;
-    padding:8;
-    outline:0;
-    width: 10px;
-    height: 10px;
-    box-shadow:none!important;
-    background:none;
-    color:rgb(216, 155, 63);
-    font-size:24px;
-}`, sheet.cssRules.length);
-
-    // Create here the DOM elements for renderer and text canvas
-    var container = document.createElement("div");
-    container.id = "container";
-    document.body.appendChild(container);
-
-    var toggle_code_button = document.createElement("button");
-    toggle_code_button.innerHTML = '+';
-    toggle_code_button.id = "toggle-code-button";
-    container.appendChild(toggle_code_button);
-
-    var code_textarea = document.createElement('textarea');
-    code_textarea.id = "textarea-code";
-    var styleElement = document.createElement('style');
-    styleElement.appendChild(document.createTextNode(codemirror_css_rules));
-    //let code_textarea = document.getElementById("textarea-code");
-    code_textarea.appendChild(styleElement);
-    container.appendChild(code_textarea);
-
-    var render_canvas = document.createElement('canvas');
-    render_canvas.id = "render-canvas";
-    render_canvas.width  = window.innerWidth;
-    render_canvas.height = window.innerHeight;
-    container.appendChild(render_canvas);
-    this.canvas = render_canvas;
-    */
-
-    /*
-	var textContainer = document.createElement("div");
-	textContainer.id = "textContainer";
-	container.appendChild(textContainer);
-
-	var text_canvas = document.createElement('canvas');
-	text_canvas.id = "text-canvas";
-	textContainer.appendChild(text_canvas);
-        */
- 
 
 
 }).apply(GLU);  

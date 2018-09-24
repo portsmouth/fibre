@@ -47,8 +47,12 @@ var Fibre = function()
     this.camControls.addEventListener('change', camChanged);
     this.camControls.keyPanSpeed = 100.0;
 
-    this.camera_active = true;
-    this.boundsHit = null;
+    this.camControls.saveState = function () {
+
+        this.target0.copy( this.target );
+        this.position0.copy( this.object.position );
+        this.zoom0 = this.object.zoom;
+    };
 
     this.gui = null;
     this.guiVisible = true;
@@ -73,6 +77,10 @@ var Fibre = function()
     window.addEventListener( 'contextmenu',   this, false );
     window.addEventListener( 'click', this, false );
     window.addEventListener( 'keydown', this, false );
+
+    // mouse state initialize:
+    this.boundsHit = null;
+    this.cornerDragging = null;
 
     this.initialized = true;
 }
@@ -279,14 +287,14 @@ Fibre.prototype.boundsRaycast = function(u, v)
 
     let cornerR = 0.05*size;
     var corners = [
-        [o[0],        o[1],        o[2]],
-        [o[0] + e[0], o[1],        o[2]],
-        [o[0]       , o[1] + e[1], o[2]],
-        [o[0] + e[0], o[1] + e[1], o[2]],
-        [o[0],        o[1],        o[2] + e[2]],
-        [o[0] + e[0], o[1],        o[2] + e[2]],
-        [o[0]       , o[1] + e[1], o[2] + e[2]],
-        [o[0] + e[0], o[1] + e[1], o[2] + e[2]]
+        [o[0],        o[1],        o[2]],         // 000b = 0
+        [o[0] + e[0], o[1],        o[2]],         // 001b = 1
+        [o[0]       , o[1] + e[1], o[2]],         // 010b = 2
+        [o[0] + e[0], o[1] + e[1], o[2]],         // 011b = 3
+        [o[0],        o[1],        o[2] + e[2]],  // 100b = 4
+        [o[0] + e[0], o[1],        o[2] + e[2]],  // 101b = 5
+        [o[0]       , o[1] + e[1], o[2] + e[2]],  // 110b = 6
+        [o[0] + e[0], o[1] + e[1], o[2] + e[2]]   // 111b = 7
 	];
 
     for (i = 0; i<corners.length; i++)
@@ -423,8 +431,6 @@ Fibre.prototype.resize = function()
 
 Fibre.prototype.onClick = function(event)
 {
-    if (!this.camera_active) return;
-
     if (this.onFibreLink)
     {
         window.open("https://github.com/portsmouth/fibre");
@@ -438,13 +444,75 @@ Fibre.prototype.onClick = function(event)
 
 Fibre.prototype.onDocumentMouseMove = function(event)
 {
-    if (!this.camera_active) return;
-
-    // Check for bounds interaction
     let u = event.clientX/window.innerWidth;
     let v = event.clientY/window.innerHeight;
-    this.boundsHit = this.boundsRaycast(u, v);
 
+    if (this.cornerDragging != null)
+    {        
+        // get dragged corner current position
+        let corner_index = this.cornerDragging.corner_index;
+        let bounds = this.getBounds();
+        boundsMin = bounds.min;
+        boundsMax = bounds.max;
+        let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+        let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+        let x =     corner_index &1;
+        let y = (corner_index>>1)&1; 
+        let z = (corner_index>>2)&1;
+        let c = new THREE.Vector3(o[0] + x*e[0], o[1] + y*e[1], o[2] + z*e[2]);
+
+        // get camera ray at current mouse location
+        let dir = new THREE.Vector3();
+        dir.set( u*2 - 1,
+                -v*2 + 1,
+                 0.5 );
+        dir.unproject(this.camera);
+        dir.sub(this.camera.position).normalize();
+        let ray = {origin:this.camera.position, direction: dir};
+
+        // intersect ray with a plane passing through the current corner, orthog. to ray
+        // to compute the new corner position
+        let oc = ray.origin.clone();
+        oc.sub(c);
+        let t = -oc.dot(ray.direction);
+        let cnew = ray.origin.clone();
+        cnew.addScaledVector(ray.direction, t);
+        var corners = [
+            [o[0],        o[1],        o[2]],         // 000b = 0
+            [o[0] + e[0], o[1],        o[2]],         // 001b = 1
+            [o[0]       , o[1] + e[1], o[2]],         // 010b = 2
+            [o[0] + e[0], o[1] + e[1], o[2]],         // 011b = 3
+            [o[0],        o[1],        o[2] + e[2]],  // 100b = 4
+            [o[0] + e[0], o[1],        o[2] + e[2]],  // 101b = 5
+            [o[0]       , o[1] + e[1], o[2] + e[2]],  // 110b = 6
+            [o[0] + e[0], o[1] + e[1], o[2] + e[2]]   // 111b = 7
+        ];
+ 
+        // clip existing corners to the new corner
+        for (c=0; c<8; ++c)
+        { 
+            if ((corner_index%2)>0)  boundsMax.x = Math.min(cnew.x, boundsMax.x);
+            else                     boundsMin.x = Math.max(cnew.x, boundsMin.x);
+            if ((corner_index%4)>=2) boundsMax.y = Math.min(cnew.y, boundsMax.y);
+            else                     boundsMin.y = Math.max(cnew.y, boundsMin.y);
+            if (corner_index>=4)     boundsMax.z = Math.min(cnew.z, boundsMax.z);
+            else                     boundsMin.z = Math.max(cnew.z, boundsMin.z);
+        }       
+        this.bounds.max = boundsMax;
+        this.bounds.min = boundsMin;
+      
+        // Expand the bounds to accommodate the new corner
+        this.bounds.expandByPoint(cnew);
+
+        this.raytracer.resetBounds();
+        this.reset(false);
+    }
+
+    // Check for bounds interaction
+    else
+    {
+        this.boundsHit = this.boundsRaycast(u, v);
+    }
 
     // Check whether user is trying to click the Fibre home link, or user link
     var textCtx = this.textCtx;
@@ -469,36 +537,45 @@ Fibre.prototype.onDocumentMouseMove = function(event)
     }
 
     this.camControls.update();
+    event.preventDefault();
 }
 
 Fibre.prototype.onDocumentMouseDown = function(event)
 {
-    if (!this.camera_active) return;
+    let boundsHit = this.boundsHit;
+    if (boundsHit && boundsHit.hit)
+    {
+        if (boundsHit.type == 'corner')
+        {
+            this.camControls.enabled = false;
+            let u = event.clientX/window.innerWidth;
+            let v = event.clientY/window.innerHeight;
+            this.cornerDragging = {u: u, v: v, corner_index:boundsHit.index};
+            this.camControls.saveState();
+        }
+    }
+
     this.camControls.update();
+    event.preventDefault();
 }
 
 Fibre.prototype.onDocumentMouseUp = function(event)
 {
-    if (!this.camera_active) return;
+    if (this.cornerDragging != null)
+    {
+        this.cornerDragging = null;
+        this.camControls.enabled = true;
+        this.camControls.reset();
+    }
+
     this.camControls.update();
+    event.preventDefault();
 }
 
 Fibre.prototype.onDocumentRightClick = function(event)
 {
 
 }
-
-Fibre.prototype.camera_enable = function()
-{
-    console.log('enable camera');
-    this.camera_active = true;
-}
-
-Fibre.prototype.camera_disable = function()
-{
-    console.log('disable camera');
-    this.camera_active = false;
-}  
 
 Fibre.prototype.onkeydown = function(event)
 {
