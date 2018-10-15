@@ -94,6 +94,14 @@ in vec2 vTexCoord;
 #define M_PI 3.1415926535897932384626433832795
 #define FLT_EPSILON 1.19209290E-07F
 
+
+//////////////////////////////////////////////////////////////
+// Dynamically injected code
+//////////////////////////////////////////////////////////////
+
+USER_CODE
+
+
 /// GLSL floating point pseudorandom number generator, from
 /// "Implementing a Photorealistic Rendering System using GLSL", Toshiya Hachisuka
 /// http://arxiv.org/pdf/1505.06022.pdf
@@ -110,18 +118,6 @@ float rand(inout vec4 rnd)
     return fract(dot(rnd/m, vec4(1.0, -1.0, 1.0, -1.0)));
 }
 
-// local emission color, a function of:
-//  - position p
-//  - arclength from start point, s
-vec3 color(vec3 p, float t)
-{
-    vec3 c;
-    float x = p.x;
-    float y = p.y;
-    float z = p.z;
-    COLOR_FIELD
-    return c;
-}    
 
 void main()
 {
@@ -298,28 +294,7 @@ in vec2 vTexCoord;
 // Dynamically injected code
 //////////////////////////////////////////////////////////////
 
-vec3 velocity(vec3 p, float t)
-{
-    vec3 v;
-    float x = p.x;
-    float y = p.y;
-    float z = p.z;
-    VELOCITY_FIELD
-    return v;
-}    
-
-// local emission color, a function of:
-//  - position p
-//  - arclength from start point, s
-vec3 color(vec3 p, float t)
-{
-    vec3 c;
-    float x = p.x;
-    float y = p.y;
-    float z = p.z;
-    COLOR_FIELD
-    return c;
-}    
+USER_CODE
 
 
 //////////////////////////////////////////////////////////////

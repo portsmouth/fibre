@@ -32,6 +32,11 @@ margin: 0px;
 padding: 0px;
 '>
 
+<div id='gui' style='
+position:absolute;
+z-index:2;
+'></div>
+
 <button id='toggle-code-button' style='
 position:absolute;
 z-index:2;
@@ -51,6 +56,10 @@ font-size:24px;
 <textarea id="textarea-code" name="textarea-code"> 
 </textarea>
 
+<textarea id="textarea-errors" name="textarea-errors"> 
+</textarea>
+
+
 <div style='position:relative;'>
 
 <canvas id='render-canvas' style='
@@ -58,7 +67,7 @@ position:absolute;
 left: 0; top: 0;
 height: 100%;
 width: 100%;
-z-index:0;
+z-index:-1;
 '></canvas>
 
 <canvas id='text-canvas' style='
@@ -66,7 +75,7 @@ position:relative;
 left: 0; top: 0;
 height: 100%;
 width: 100%;
-z-index:1;
+z-index:0;
 pointer-events: none;  
 '></canvas>
 
@@ -87,25 +96,40 @@ function onLoad()
     document.getElementsByTagName('head')[0].appendChild(styleElement);
 
     let code_textarea = document.getElementById("textarea-code");
-
-    editor = CodeMirror(function(elt) {
+    let editor = CodeMirror(function(elt) {
         code_textarea.parentNode.replaceChild(elt, code_textarea);
     }, {
         lineNumbers: true,
         extraKeys: {"Ctrl-Space": "autocomplete"},
-        viewportMargin: Infinity,
         mode: "x-shader/x-fragment"
     });
     editor.setOption("theme", 'lucario');
 
-    editor.setValue(`
+    let error_textarea = document.getElementById("textarea-errors");
+    let error_editor = CodeMirror(function(elt) {
+        error_textarea.parentNode.replaceChild(elt, error_textarea);
+    }, {
+        lineNumbers: false,
+        extraKeys: {"Ctrl-Space": "autocomplete"},
+        viewportMargin: Infinity,
+        mode: "x-shader/x-fragment",
+        readOnly: true
+    });
+    error_editor.setOption("theme", 'monokai');
+    error_editor.setValue('test');
 
+    this.code = `
 ///////////////////////////////////////////
-// Some demonstration code
+// Lorenz attractor
 ///////////////////////////////////////////
 
-uniform float f; // auto-creates a float slider, driving this parameter
-uniform vec3 c;  // auto-creates a color slider, driving this parameter
+const float rho = 8.0;      // auto-creates a float slider, driving this parameter
+const float sigma = 1.0;
+const float beta = 8.0/3.0;
+
+const vec3 colA = vec3(1, 0, 1);
+const vec3 colB = vec3(1, 1, 0);
+const float wavelength = 0.1;
 
 vec3 velocity(vec3 p, float t)
 {
@@ -113,9 +137,6 @@ vec3 velocity(vec3 p, float t)
     float x = p.x;
     float y = p.y;
     float z = p.z;
-    const float rho = 8.0;
-    const float sigma = 1.0;
-    const float beta = 8.0/3.0;
     v.x = sigma*(y - x);
     v.y = x*(rho - z);
     v.z = x*y - beta*z;
@@ -124,21 +145,21 @@ vec3 velocity(vec3 p, float t)
 
 vec3 color(vec3 p, float t)
 {
-    float l = 0.5*(1.0 + cos(20.0*t));
-    return vec3(l, l, 1.0-l);
-    return c;
+    float phase = cos(t/wavelength);
+    return cos(phase)*colA + sin(phase)*colB;
 }  
-`);
+`;
 
-    
+    editor.setValue(this.code);
 
-    fibre = new Fibre(); 
+    fibre = new Fibre(editor, error_editor); 
 
     var cmEl = document.querySelector('.CodeMirror');
 
     cmEl.addEventListener('mouseleave', function(e) {
         console.log('mouseleave');
-        fibre.camControls.enabled = true;
+        if (!fibre.cornerDragging && !fibre.centerDragging)
+            fibre.camControls.enabled = true;
     });
 
     cmEl.addEventListener('mouseenter', function(e) {

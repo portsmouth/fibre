@@ -75,6 +75,13 @@ var Raytracer = function()
     this.exposure = 3.0;
     this.gamma = 2.2;
 
+    this.xmin = 0.0001;
+    this.xmax = 0.0001;
+    this.ymin = 0.0001;
+    this.ymax = 0.0001;
+    this.zmin = 0.0001;
+    this.zmax = 0.0001;
+
     // Create a quad VBO for rendering textures
     this.quadVbo = this.createQuadVbo();
     this.boxVbo     = null;
@@ -189,7 +196,7 @@ Raytracer.prototype.createBoxCornerVbos = function()
     let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
     let s = 0.666;
 
-    let outerR = 0.25 * Math.max(e[0], e[1], e[2]);
+    let outerR = 0.5 * Math.max(e[0], e[1], e[2]);
 
     this.cornerVbos = [];
     for (c=0; c<8; ++c)
@@ -230,17 +237,28 @@ Raytracer.prototype.resetBounds = function()
 {
     this.deleteBoxVbo();
     this.deleteBoxCornerVbos();
+    let bounds = fibre.getBounds();
+    boundsMin = bounds.min;
+    boundsMax = bounds.max;
+
+    this.xmin = boundsMin.x;
+    this.ymin = boundsMin.y;
+    this.zmin = boundsMin.z;
+    this.xmax = boundsMax.x;
+    this.ymax = boundsMax.y;
+    this.zmax = boundsMax.z;
 }
 
 
-Raytracer.prototype.reset = function()
+Raytracer.prototype.reset = function(no_recompile)
 {
     this.wavesTraced = 0;
     this.raysTraced = 0;
     this.pathLength = 0;
     this.time_ms = 0.0;
 
-    this.compileShaders();
+    if (!no_recompile)
+        this.compileShaders();
     this.initStates();
     this.resetBounds();
 
@@ -258,22 +276,37 @@ Raytracer.prototype.reset = function()
 
 Raytracer.prototype.compileShaders = function()
 {
+    // internal shaders
+    this.lineProgram  = new GLU.Shader('line',  this.shaderSources, null);
+    this.boxProgram   = new GLU.Shader('box',   this.shaderSources, null);
+    this.compProgram  = new GLU.Shader('comp',  this.shaderSources, null);
+    this.passProgram  = new GLU.Shader('pass',  this.shaderSources, null);
+
     let glsl = fibre.getGlsl();
 
     // Copy the current scene and material routines into the source code
     // of the trace fragment shader
     replacements = {};
-    replacements.VELOCITY_FIELD = glsl.velocity;
-    replacements.COLOR_FIELD = glsl.color;
+    replacements.USER_CODE = glsl;
 
     // shaderSources is a dict from name (e.g. "trace")
     // to a dict {v:vertexShaderSource, f:fragmentShaderSource}
     this.traceProgram = new GLU.Shader('trace', this.shaderSources, replacements);
+    if (!this.traceProgram.program)
+    {
+        this.traceProgram = null;
+        return;
+    }
+
     this.initProgram  = new GLU.Shader('init',  this.shaderSources, replacements);
-    this.lineProgram  = new GLU.Shader('line',  this.shaderSources, null);
-    this.boxProgram   = new GLU.Shader('box',   this.shaderSources, null);
-    this.compProgram  = new GLU.Shader('comp',  this.shaderSources, null);
-    this.passProgram  = new GLU.Shader('pass',  this.shaderSources, null);
+    if (!this.initProgram.program)
+    {
+        this.initProgram = null;
+        this.traceProgram = null;
+        return;
+    }
+
+    fibre.disable_errors();
 }
 
 
@@ -351,7 +384,6 @@ Raytracer.prototype.render = function()
 {
     if (!this.enabled) return;
     var gl = GLU.gl;
-
     var timer_start = performance.now();
 
     // Get camera matrices
@@ -368,6 +400,7 @@ Raytracer.prototype.render = function()
     boundsMax = bounds.max;
     
     // Clear wavebuffer
+    if (this.traceProgram)
     {
         this.fbo.bind();
         this.quadVbo.bind();
@@ -381,12 +414,12 @@ Raytracer.prototype.render = function()
     }
 
     // Initialize ray start points, colors, and random seeds
+    if (this.traceProgram)
     {
         gl.disable(gl.BLEND);
         gl.viewport(0, 0, this.raySize, this.raySize);
 
         this.fbo.drawBuffers(3);
-        
         let current = this.currentState;
         let next = 1 - current;
         
@@ -395,7 +428,6 @@ Raytracer.prototype.render = function()
         this.initProgram.bind(); // Start all rays at emission point(s)
         this.rayStates[current].rngTex.bind(0); // Read random seed from the current state
         this.initProgram.uniformTexture("RngData", this.rayStates[current].rngTex);
-        
         this.initProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
         this.initProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
         this.initProgram.uniformF("gridSpace", this.gridSpace);
@@ -406,6 +438,7 @@ Raytracer.prototype.render = function()
     }
 
     // Prepare raytracing program
+    if (this.traceProgram)
     {
         this.traceProgram.bind();
         let timestep = this.integrationTime / this.maxTimeSteps;
@@ -427,90 +460,87 @@ Raytracer.prototype.render = function()
 
     gl.disable(gl.BLEND);
 
-    // Integrate progressively along the wavefront of rays
-    while (this.pathLength < this.maxTimeSteps)
+    if (this.traceProgram)
     {
-        let current = this.currentState;
-        let next = 1 - current;
-
-        // Propagate the current set of rays through the vector field, generating new ray pos/dir data in 'next' rayStates textures
+        // Integrate progressively along the wavefront of rays
+        while (this.pathLength < this.maxTimeSteps)
         {
-            gl.viewport(0, 0, this.raySize, this.raySize);
-            this.fbo.drawBuffers(3);
-            this.rayStates[next].attach(this.fbo);
-            this.quadVbo.bind();
+            let current = this.currentState;
+            let next = 1 - current;
 
-            this.traceProgram.bind();
-            this.rayStates[current].bind(this.traceProgram);       // Use the current state as the initial conditions
-            this.quadVbo.draw(this.traceProgram, gl.TRIANGLE_FAN); // Generate the next ray state
-            this.rayStates[next].detach(this.fbo)
+            // Propagate the current set of rays through the vector field, generating new ray pos/dir data in 'next' rayStates textures
+            {
+                gl.viewport(0, 0, this.raySize, this.raySize);
+                this.fbo.drawBuffers(3);
+                this.rayStates[next].attach(this.fbo);
+                this.quadVbo.bind();
+
+                this.traceProgram.bind();
+                this.rayStates[current].bind(this.traceProgram);       // Use the current state as the initial conditions
+                this.quadVbo.draw(this.traceProgram, gl.TRIANGLE_FAN); // Generate the next ray state
+                this.rayStates[next].detach(this.fbo)
+            }
+
+            // Read this data to draw the next 'wavefront' of rays (i.e. line segments) into the wave buffer
+            {
+                gl.viewport(0, 0, this.width, this.height);
+                gl.disable(gl.DEPTH_TEST);
+                this.fbo.drawBuffers(1);
+
+                // The float radiance channels of all lines are simply added each pass
+                gl.blendFunc(gl.ONE, gl.ONE); // accumulate line segment radiances
+                gl.enable(gl.BLEND);
+                this.lineProgram.bind();
+                this.rayStates[current].posTex.bind(0); // read PosDataA = current.posTex
+                this.rayStates[   next].posTex.bind(1); // read PosDataB = next.posTex
+                this.rayStates[current].rgbTex.bind(2); // read RgbDataA = current.rgbTex
+                this.rayStates[   next].rgbTex.bind(3); // read RgbDataB = next.rgbTex
+                this.lineProgram.uniformTexture("PosDataA", this.rayStates[current].posTex);
+                this.lineProgram.uniformTexture("PosDataB", this.rayStates[   next].posTex);
+                this.lineProgram.uniformTexture("RgbDataA", this.rayStates[current].rgbTex);
+                this.lineProgram.uniformTexture("RgbDataB", this.rayStates[   next].rgbTex);
+                this.rayVbo.bind(); // Binds the TexCoord attribute
+                this.fbo.attachTexture(this.waveBuffer, 0); // write to wavebuffer
+                this.rayVbo.draw(this.lineProgram, gl.LINES, this.raySize*this.raySize*2);
+                gl.disable(gl.BLEND);
+            }
+
+            // Update raytracing state
+            this.pathLength += 1;
+            this.currentState = next;
         }
 
-        // Read this data to draw the next 'wavefront' of rays (i.e. line segments) into the wave buffer
+        // Add the wavebuffer contents, a complete set of rendered path segments, into the fluence buffer
         {
-            gl.viewport(0, 0, this.width, this.height);
-            gl.disable(gl.DEPTH_TEST);
-            this.fbo.drawBuffers(1);
-
-            // The float radiance channels of all lines are simply added each pass
-            gl.blendFunc(gl.ONE, gl.ONE); // accumulate line segment radiances
             gl.enable(gl.BLEND);
-            this.lineProgram.bind();
-            this.rayStates[current].posTex.bind(0); // read PosDataA = current.posTex
-            this.rayStates[   next].posTex.bind(1); // read PosDataB = next.posTex
-            this.rayStates[current].rgbTex.bind(2); // read RgbDataA = current.rgbTex
-            this.rayStates[   next].rgbTex.bind(3); // read RgbDataB = next.rgbTex
-            this.lineProgram.uniformTexture("PosDataA", this.rayStates[current].posTex);
-            this.lineProgram.uniformTexture("PosDataB", this.rayStates[   next].posTex);
-            this.lineProgram.uniformTexture("RgbDataA", this.rayStates[current].rgbTex);
-            this.lineProgram.uniformTexture("RgbDataB", this.rayStates[   next].rgbTex);
-            this.rayVbo.bind(); // Binds the TexCoord attribute
-            this.fbo.attachTexture(this.waveBuffer, 0); // write to wavebuffer
-            this.rayVbo.draw(this.lineProgram, gl.LINES, this.raySize*this.raySize*2);
-            gl.disable(gl.BLEND);
+            gl.blendFunc(gl.ONE, gl.ONE); // accumulate radiances of all line segments from current 'wave' of bounces
+            this.quadVbo.bind();
+            this.fbo.attachTexture(this.fluenceBuffer, 0); // write to fluence buffer
+            this.waveBuffer.bind(0);                       // read from wave buffer
+            this.passProgram.bind();
+            this.passProgram.uniformTexture("WaveBuffer", this.waveBuffer);
+            this.quadVbo.draw(this.passProgram, gl.TRIANGLE_FAN);
         }
 
-        // Update raytracing state
-        this.pathLength += 1;
-        this.currentState = next;
+        this.fbo.unbind();
+        gl.disable(gl.BLEND);
+
+        // Final composite of normalized fluence to window
+        this.raysTraced += this.raySize*this.raySize;
+        this.composite();
     }
-
-    // Add the wavebuffer contents, a complete set of rendered path segments, into the fluence buffer
-    {
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.ONE, gl.ONE); // accumulate radiances of all line segments from current 'wave' of bounces
-        this.quadVbo.bind();
-        this.fbo.attachTexture(this.fluenceBuffer, 0); // write to fluence buffer
-        this.waveBuffer.bind(0);                       // read from wave buffer
-        this.passProgram.bind();
-        this.passProgram.uniformTexture("WaveBuffer", this.waveBuffer);
-        this.quadVbo.draw(this.passProgram, gl.TRIANGLE_FAN);
-    }
-
-    this.fbo.unbind();
-    gl.disable(gl.BLEND);
-
-    // Final composite of normalized fluence to window
-    this.raysTraced += this.raySize*this.raySize;
-    this.composite();
 
     // Draw grid bounds
     {
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
         this.boxProgram.bind();
-
         let boundsHit = fibre.boundsHit;
         if (boundsHit && boundsHit.hit && boundsHit.type == 'center')
-        {
             this.boxProgram.uniform4Fv("color", [1.0, 0.9, 0.9, 0.5]);
-        }
         else
-        {
             this.boxProgram.uniform4Fv("color", [1.0, 1.0, 1.0, 0.2]);
-        }
-
+        
         // Setup projection matrix
         var projectionMatrixLocation = this.boxProgram.getUniformLocation("u_projectionMatrix");
         gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
@@ -536,14 +566,11 @@ Raytracer.prototype.render = function()
                 let corner_index = boundsHit.index;
                 let axis_index = boundsHit.axis;
                 if (!this.cornerVbos)
-                {
                     this.createBoxCornerVbos(); 
-                }
-
                 let boxCornerVbos = this.cornerVbos[corner_index];
                 let boxCornerVbo = boxCornerVbos[axis_index];
                 boxCornerVbo.bind();
-                this.boxProgram.uniform4Fv("color", [1.0, 1.0, 0.0, 1.0]);
+                this.boxProgram.uniform4Fv("color", [1.0, 0.8, 0.1, 0.5]);
                 boxCornerVbo.draw(this.boxProgram, gl.LINES);
             }
         }
@@ -551,7 +578,6 @@ Raytracer.prototype.render = function()
 
     this.wavesTraced += 1;
     this.pathLength = 0;
-
     var timer_end = performance.now();
     var frame_time_ms = (timer_end - timer_start);
     this.time_ms += frame_time_ms;
@@ -562,9 +588,7 @@ Raytracer.prototype.resize = function(width, height)
 {
 	this.width = width;
 	this.height = height;
-
 	this.waveBuffer    = new GLU.Texture(width, height, 4, true, false, true, null);
 	this.fluenceBuffer = new GLU.Texture(width, height, 4, true, false, true, null);
-
 	this.reset();
 }

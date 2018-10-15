@@ -5,7 +5,7 @@
 var GUI = function(visible = true) 
 {
 	// Create dat gui
-	this.gui = new dat.GUI();
+	this.gui = new dat.GUI({autoPlace: true});
 	this.gui.domElement.id = 'gui';
 	var gui = this.gui;
 	this.visible = visible;
@@ -51,7 +51,7 @@ function hexToRgb(hex)
 
 GUI.prototype.createRaytracerSettings = function()
 {
-    this.rendererFolder = this.gui.addFolder('Raytracer');
+    this.rendererFolder = this.gui.addFolder('Settings');
     this.raytracerSettings = {};
     var raytracer = fibre.getRaytracer();
 
@@ -63,6 +63,13 @@ GUI.prototype.createRaytracerSettings = function()
 
     this.rendererFolder.add(raytracer, 'exposure', -10.0, 10.0);
     this.rendererFolder.add(raytracer, 'gamma', 0.0, 3.0);
+
+    this.rendererFolder.add(raytracer, 'xmin').onChange( function(value) { if (fibre.get_xmax() < value) raytracer.xmin = fibre.get_xmax(); else fibre.set_xmin(value); });
+    this.rendererFolder.add(raytracer, 'ymin').onChange( function(value) { if (fibre.get_ymax() < value) raytracer.ymin = fibre.get_ymax(); else fibre.set_ymin(value); });
+    this.rendererFolder.add(raytracer, 'zmin').onChange( function(value) { if (fibre.get_zmax() < value) raytracer.zmin = fibre.get_zmax(); else fibre.set_zmin(value); });
+    this.rendererFolder.add(raytracer, 'xmax').onChange( function(value) { if (fibre.get_xmin() > value) raytracer.xmax = fibre.get_xmin(); else fibre.set_xmax(value); });
+    this.rendererFolder.add(raytracer, 'ymax').onChange( function(value) { if (fibre.get_ymin() > value) raytracer.ymax = fibre.get_ymin(); else fibre.set_ymax(value); });
+    this.rendererFolder.add(raytracer, 'zmax').onChange( function(value) { if (fibre.get_zmin() > value) raytracer.zmax = fibre.get_zmin(); else fibre.set_zmax(value); });
 
     this.rendererFolder.close();
 }

@@ -17,28 +17,7 @@ in vec2 vTexCoord;
 // Dynamically injected code
 //////////////////////////////////////////////////////////////
 
-vec3 velocity(vec3 p, float t)
-{
-    vec3 v;
-    float x = p.x;
-    float y = p.y;
-    float z = p.z;
-    VELOCITY_FIELD
-    return v;
-}    
-
-// local emission color, a function of:
-//  - position p
-//  - arclength from start point, s
-vec3 color(vec3 p, float t)
-{
-    vec3 c;
-    float x = p.x;
-    float y = p.y;
-    float z = p.z;
-    COLOR_FIELD
-    return c;
-}    
+USER_CODE
 
 
 //////////////////////////////////////////////////////////////

@@ -1,14 +1,19 @@
+var fibre; // global instance
 
 /**
 * Fibre is the global object providing access to all functionality in the system.
 * @constructor
 */
-var Fibre = function()
+var Fibre = function(editor, error_editor)
 {
     this.initialized = false;
     this.terminated = false;
     this.rendering = false;
     fibre = this;
+
+    this.editor = editor;
+    this.error_editor = error_editor;
+    $(this.error_editor.getWrapperElement()).hide();
 
     let container = document.getElementById("container");
     this.container = container;
@@ -27,8 +32,6 @@ var Fibre = function()
     this.textCtx = text_canvas.getContext("2d");
     this.onFibreLink = false;
     this.onUserLink = false;
-
-    //this.textCtx = null;
 
     window.addEventListener( 'resize', this, false );
 
@@ -61,14 +64,22 @@ var Fibre = function()
     this.raytracer = new Raytracer();
     this.auto_resize = true;
 
+    // Create dat gui
+    this.gui = new GUI(this.guiVisible);
+
     // Initialize field
     this.initField()
         
     // Do initial resize:
     this.resize();
 
-    // Create dat gui
-    this.gui = new GUI(this.guiVisible);
+    // Setup codemirror events:
+    let raytracer = this.raytracer;
+    let ME = this;
+    this.editor.on("change", function(cm, n) {
+        ME.code = cm.getValue();
+        ME.reset();
+    });
 
     // Setup keypress and mouse events
     window.addEventListener( 'mousemove', this, false );
@@ -116,12 +127,6 @@ Fibre.prototype.handleEvent = function(event)
 Fibre.prototype.getRaytracer = function()
 {
 	return this.raytracer;
-}
-
-
-Fibre.prototype.getPotential = function()
-{
-	return this.potentialObj;
 }
 
 
@@ -176,34 +181,27 @@ Fibre.prototype.getBounds = function()
     return this.bounds;
 }
 
+Fibre.prototype.set_xmin = function(val) { if (val == this.bounds.min.getComponent(0)) return; this.bounds.min.setComponent(0, val); this.raytracer.resetBounds(); }
+Fibre.prototype.set_ymin = function(val) { if (val == this.bounds.min.getComponent(1)) return; this.bounds.min.setComponent(1, val); this.raytracer.resetBounds(); }
+Fibre.prototype.set_zmin = function(val) { if (val == this.bounds.min.getComponent(2)) return; this.bounds.min.setComponent(2, val); this.raytracer.resetBounds(); }
+Fibre.prototype.set_xmax = function(val) { if (val == this.bounds.max.getComponent(0)) return; this.bounds.max.setComponent(0, val); this.raytracer.resetBounds(); }
+Fibre.prototype.set_ymax = function(val) { if (val == this.bounds.max.getComponent(1)) return; this.bounds.max.setComponent(1, val); this.raytracer.resetBounds(); }
+Fibre.prototype.set_zmax = function(val) { if (val == this.bounds.max.getComponent(2)) return; this.bounds.max.setComponent(2, val); this.raytracer.resetBounds(); }
+
+Fibre.prototype.get_xmin = function() { return this.bounds.min.getComponent(0); }
+Fibre.prototype.get_ymin = function() { return this.bounds.min.getComponent(1); }
+Fibre.prototype.get_zmin = function() { return this.bounds.min.getComponent(2); }
+Fibre.prototype.get_xmax = function() { return this.bounds.max.getComponent(0); }
+Fibre.prototype.get_ymax = function() { return this.bounds.max.getComponent(1); }
+Fibre.prototype.get_zmax = function() { return this.bounds.max.getComponent(2); }
+
 Fibre.prototype.getGlsl= function()
 {
-    return this.glsl;
+    return this.code;
 }
 
 Fibre.prototype.initField = function()
 {
-    this.glsl = {};
-
-    // @todo: this GLSL needs to be specified in the UI, and also initialized via the URL itself
-    // vec3 velocity(vec3 p) {
-    //   vec3 v;
-    this.glsl.velocity = `
-    const float rho = 1.0;
-    const float sigma = 1.0;
-    const float beta = 1.0;
-    v.x = sigma*(y - x);
-    v.y = x*(rho - z);
-    v.z = x*y - beta*z;
-    `;
-
-    // @todo: color should be time-dependent, for cycling
-    // vec3 color(vec3 p) {
-    this.glsl.color = `
-        float l = 0.5*(1.0 + cos(20.0*t));
-        c = vec3(l, l, 1.0-l);
-    `;
-
     // bounds will be specified by text fields and in URL, and also via some in-viewport UI
     this.bounds = new THREE.Box3(new THREE.Vector3(-0.5, -0.5, -0.5), new THREE.Vector3(0.5, 0.5, 0.5));
     size = new THREE.Vector3();
@@ -229,8 +227,13 @@ Fibre.prototype.initField = function()
     this.sceneName = ''
     this.sceneURL = ''
 
+    // Initialize code (@todo: take from URL)
+    this.code = this.editor.getValue();
+
     // Compile GLSL shaders
     this.raytracer.compileShaders();
+    this.raytracer.resetBounds();
+    this.gui.sync();
 
     // Fix renderer to width & height, if they were specified
     if ((typeof this.raytracer.width!=="undefined") && (typeof this.raytracer.height!=="undefined"))
@@ -246,11 +249,57 @@ Fibre.prototype.initField = function()
     this.reset(false);
 }
 
+Fibre.prototype.link_error = function(program_info, error_log)
+{
+    console.log("Link error: ");
+    console.log("\t\tprogram_info: ", program_info);
+    console.log("\t\terror_log: ", error_log);
+}
+
+
+
+Fibre.prototype.disable_errors = function()
+{
+    $(this.error_editor.getWrapperElement()).hide();
+}
+
+Fibre.prototype.compile_error = function(shaderName, shaderTypeStr, error_log)
+{
+    $(this.error_editor.getWrapperElement()).show();
+
+    this.error_editor.setValue('');
+    this.error_editor.clearHistory();
+
+    errStr = '';
+
+    console.log("Compile error: ");
+    console.log("\t\tshaderName: ", shaderName);
+    console.log("\t\tshaderTypeStr: ", shaderTypeStr);
+    console.log("\t\terror_log: \n", error_log);
+    const errorRE = /\d+:(\d+):/;
+    error_log.split('\n').forEach( function(error, ndx) {
+        const m = errorRE.exec(error);
+        if (m)
+        {
+            const traceShaderLineStart = 20;
+            let lineNum = Math.max(m ? parseInt(m[1]) : 0, 0) - traceShaderLineStart;
+            error = error.replace(errorRE, "");
+            error = error.replace('ERROR:', "");
+            error = error.trim();
+            if (error)
+                errStr += '\t→ Error on line ' + lineNum + ': ' + error + '\n';
+        }
+    });
+
+    this.error_editor.setValue(errStr);
+}
+
 
 // Renderer reset on camera or other parameters update
 Fibre.prototype.reset = function(no_recompile = false)
 {
 	if (!this.initialized || this.terminated) return;
+    this.gui.sync();
 	this.raytracer.reset(no_recompile);
 }
 
@@ -273,8 +322,9 @@ Fibre.prototype.sphereIntersect = function(ray, center, radius)
     let r = radius;
     let od = o.dot(d);
     let o2 = o.dot(o);
-    let b = od;
-    let det2 = b*b - o2 + r*r;
+    let c = o2 - r*r;
+    let b = 2.0 * od;
+    let det2 = b*b - 4.0*c;
     if (det2 < 0.0) return {hit:false, t:null};
     let t = (-b - Math.sqrt(det2)) / 2.0;
     return {hit:true, t:t, type: 'center'};
@@ -345,14 +395,14 @@ Fibre.prototype.boundsRaycast = function(u, v)
     let tmin = 1.0e10;
 
     // raycast center sphere manipulator
-    let sphereR = 0.1 * Math.max(e[0], e[1], e[2]);
+    let sphereR = 0.333 * Math.max(e[0], e[1], e[2]);
     let center = new THREE.Vector3(o[0] + 0.5*e[0], o[1] + 0.5*e[1], o[2] + 0.5*e[2]);
     let isect_sphere = this.sphereIntersect(ray, center, sphereR);
-    if (isect_sphere.hit) { isect_min = isect_sphere; tmin = isect_sphere.t };
+    if (isect_sphere.hit) { isect_min = isect_sphere; tmin = isect_sphere.t; };
 
     // raycast corner cylinder manipulators
     let cornerR = 0.05 * Math.max(e[0], e[1], e[2]);
-    let outerR = 0.25 * Math.max(e[0], e[1], e[2]);
+    let outerR = 0.5 * Math.max(e[0], e[1], e[2]);
     for (i = 0; i<corners.length; i++)
     {
         let c = corners[i];
@@ -363,7 +413,11 @@ Fibre.prototype.boundsRaycast = function(u, v)
             let Lo = e[axis] * 0.4;
             let aa = [0, 0, 0];
             let ab = [0, 0, 0];
-            if (c[axis] - o[axis] > 0.01*size) {
+
+            if ((axis==0 && (i==1 || i==3 || i==5 || i==7)) ||
+                (axis==1 && (i==2 || i==3 || i==6 || i==7)) ||
+                (axis==2 && (i==4 || i==5 || i==6 || i==7)))
+            {
                 aa[axis] = -L; 
                 ab[axis] = outerR;
             }
@@ -403,8 +457,6 @@ Fibre.prototype.render = function()
 
     if (!this.initialized || this.terminated) return;
     this.rendering = true;
-
-    // Render lensed light via raytracing
     this.raytracer.render();
 
     // Update HUD text canvas
@@ -584,7 +636,7 @@ Fibre.prototype.onDocumentMouseMove = function(event)
         this.bounds.expandByPoint(cnew);
 
         this.raytracer.resetBounds();
-        this.reset(false);
+        this.reset(true);
     }
 
     else if (this.centerDragging != null)
@@ -618,7 +670,7 @@ Fibre.prototype.onDocumentMouseMove = function(event)
         this.bounds.min.add(cnew); 
 
         this.raytracer.resetBounds();
-        this.reset(false);
+        this.reset(true);
     }
 
     // Check for bounds interaction
@@ -680,7 +732,7 @@ Fibre.prototype.onDocumentMouseDown = function(event)
     }
 
     this.camControls.update();
-    event.preventDefault();
+    //event.preventDefault();
 }
 
 Fibre.prototype.onDocumentMouseUp = function(event)
@@ -733,20 +785,7 @@ Fibre.prototype.onkeydown = function(event)
             this.guiVisible = !this.guiVisible;
             fibre.getGUI().toggleHide();
             break;
-        
-        case 79: // O key: output scene settings code to console
-            let code = this.dumpScene();
-            console.log(code);
-            break;
-
-        case 80: // P key: save current image to disk
-        {
-            var w = window.open('about:blank', 'Fibre screenshot');
-            let dataURL = this.render_canvas.toDataURL("image/png");
-            w.document.write("<img src='"+dataURL+"' alt='from canvas'/>");
-            break;
-        }
-
+    
         case 87: // W key: cam forward
         {
             if (!this.camControls.enabled) break;
