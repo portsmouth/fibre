@@ -166,7 +166,10 @@ Raytracer.prototype.deleteBoxCornerVbos = function()
     {
         for (c=0; c<this.cornerVbos.length; ++c)
         {
-            this.cornerVbos[c].delete();
+            this.axisVbos = this.cornerVbos[c];
+            this.axisVbos[0].delete();
+            this.axisVbos[1].delete();
+            this.axisVbos[2].delete();
         }   
         this.cornerVbos = null;
     }
@@ -184,24 +187,41 @@ Raytracer.prototype.createBoxCornerVbos = function()
     boundsMax = bounds.max;
     let o = [boundsMin.x, boundsMin.y, boundsMin.z];
     let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
-    let s = 0.9;
+    let s = 0.666;
+
+    let outerR = 0.25 * Math.max(e[0], e[1], e[2]);
+
     this.cornerVbos = [];
     for (c=0; c<8; ++c)
     {   
-        let x =     c &1; xp = s*x + (1.0-s)*((x+1)%2);
-        let y = (c>>1)&1; yp = s*y + (1.0-s)*((y+1)%2);
-        let z = (c>>2)&1; zp = s*z + (1.0-s)*((z+1)%2);
-        corner = [o[0] + x *e[0], o[1] + y *e[1], o[2] + z *e[2],
-                  o[0] + xp*e[0], o[1] + y *e[1], o[2] + z *e[2],
-                  o[0] + x *e[0], o[1] + y *e[1], o[2] + z *e[2],
-                  o[0] + x *e[0], o[1] + yp*e[1], o[2] + z *e[2],
-                  o[0] + x *e[0], o[1] + y *e[1], o[2] + z *e[2],
-                  o[0] + x *e[0], o[1] + y *e[1], o[2] + zp*e[2]];
-        var vbo = new GLU.VertexBuffer();
-        vbo.addAttribute("Position", 3, gl.FLOAT, false);
-        vbo.init(6);
-        vbo.copy(new Float32Array(corner));
-        this.cornerVbos.push(vbo);
+        let x =     c &1; let xp = s*x + (1.0-s)*((x+1)%2); let xn = -outerR*(xp - x)/Math.abs(xp - x); 
+        let y = (c>>1)&1; let yp = s*y + (1.0-s)*((y+1)%2); let yn = -outerR*(yp - y)/Math.abs(yp - y);
+        let z = (c>>2)&1; let zp = s*z + (1.0-s)*((z+1)%2); let zn = -outerR*(zp - z)/Math.abs(zp - z);
+
+        this.axisVbos = []
+        axis0 = [o[0] + x *e[0] + xn, o[1] + y *e[1],      o[2] + z *e[2],
+                 o[0] + xp*e[0],      o[1] + y *e[1],      o[2] + z *e[2]];
+        axis1 = [o[0] + x *e[0],      o[1] + y *e[1] + yn, o[2] + z *e[2],
+                 o[0] + x *e[0],      o[1] + yp*e[1],      o[2] + z *e[2]];
+        axis2 = [o[0] + x *e[0],      o[1] + y *e[1],      o[2] + z *e[2] + zn,
+                 o[0] + x *e[0],      o[1] + y *e[1],      o[2] + zp*e[2]];
+
+        this.axisVbos[0] = new GLU.VertexBuffer();
+        this.axisVbos[0].addAttribute("Position", 3, gl.FLOAT, false);
+        this.axisVbos[0].init(2);
+        this.axisVbos[0].copy(new Float32Array(axis0));
+
+        this.axisVbos[1] = new GLU.VertexBuffer();
+        this.axisVbos[1].addAttribute("Position", 3, gl.FLOAT, false);
+        this.axisVbos[1].init(2);
+        this.axisVbos[1].copy(new Float32Array(axis1));
+
+        this.axisVbos[2] = new GLU.VertexBuffer();
+        this.axisVbos[2].addAttribute("Position", 3, gl.FLOAT, false);
+        this.axisVbos[2].init(2);
+        this.axisVbos[2].copy(new Float32Array(axis2));
+      
+        this.cornerVbos.push(this.axisVbos);
     }
 }
 
@@ -480,7 +500,16 @@ Raytracer.prototype.render = function()
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
         this.boxProgram.bind();
-        this.boxProgram.uniform4Fv("color", [1.0, 1.0, 1.0, 0.2]);
+
+        let boundsHit = fibre.boundsHit;
+        if (boundsHit && boundsHit.hit && boundsHit.type == 'center')
+        {
+            this.boxProgram.uniform4Fv("color", [1.0, 0.9, 0.9, 0.5]);
+        }
+        else
+        {
+            this.boxProgram.uniform4Fv("color", [1.0, 1.0, 1.0, 0.2]);
+        }
 
         // Setup projection matrix
         var projectionMatrixLocation = this.boxProgram.getUniformLocation("u_projectionMatrix");
@@ -500,18 +529,19 @@ Raytracer.prototype.render = function()
         this.boxVbo.draw(this.boxProgram, gl.LINES);
 
         // Draw corner highlights if mouse-over is active
-        let boundsHit = fibre.boundsHit;
         if (boundsHit && boundsHit.hit)
         {
             if (boundsHit.type == 'corner')
             {
                 let corner_index = boundsHit.index;
+                let axis_index = boundsHit.axis;
                 if (!this.cornerVbos)
                 {
                     this.createBoxCornerVbos(); 
                 }
 
-                let boxCornerVbo = this.cornerVbos[corner_index];
+                let boxCornerVbos = this.cornerVbos[corner_index];
+                let boxCornerVbo = boxCornerVbos[axis_index];
                 boxCornerVbo.bind();
                 this.boxProgram.uniform4Fv("color", [1.0, 1.0, 0.0, 1.0]);
                 boxCornerVbo.draw(this.boxProgram, gl.LINES);

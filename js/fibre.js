@@ -81,6 +81,7 @@ var Fibre = function()
     // mouse state initialize:
     this.boundsHit = null;
     this.cornerDragging = null;
+    this.centerDragging = null;
 
     this.initialized = true;
 }
@@ -253,6 +254,17 @@ Fibre.prototype.reset = function(no_recompile = false)
 	this.raytracer.reset(no_recompile);
 }
 
+Fibre.prototype.project = function(v, axis)
+{
+    // v - (v.axis)*axis
+    let vp = v.clone();
+    let a = axis.clone();
+    a.multiplyScalar(v.dot(axis))
+    vp.sub(a);
+    return vp;
+}
+
+
 Fibre.prototype.sphereIntersect = function(ray, center, radius)
 {
     let o = ray.origin.clone();
@@ -261,9 +273,42 @@ Fibre.prototype.sphereIntersect = function(ray, center, radius)
     let r = radius;
     let od = o.dot(d);
     let o2 = o.dot(o);
-    let det2 = od*od - o2 + r*r;
-    if (det2 < 0.0) return false;
-    return true;
+    let b = od;
+    let det2 = b*b - o2 + r*r;
+    if (det2 < 0.0) return {hit:false, t:null};
+    let t = (-b - Math.sqrt(det2)) / 2.0;
+    return {hit:true, t:t, type: 'center'};
+}
+
+Fibre.prototype.capsuleIntersect = function(ray, cA, cB, R)
+{
+    // check for cylinder hit
+    let o = ray.origin;
+    let d = ray.direction;
+    let axis = cB.clone(); // axis = norm(cB - cA)
+    axis.sub(cA);
+    axis.normalize();
+    let ocA = o.clone(); // ocA = o - cA
+    ocA.sub(cA);
+    let ocAp = this.project(ocA, axis);
+    let dperp = this.project(d, axis);
+    let a = dperp.dot(dperp);
+    let b = 2.0 * ocAp.dot(dperp);
+    let c = ocAp.dot(ocAp) - R*R;
+    let det2 = b*b - 4.0*a*c;
+    if (det2 < 0.0) return {hit:false, t:null};
+    
+    // check within axis bounds
+    let t = (-b - Math.sqrt(det2)) / (2.0*a);
+    let x = d.clone();
+    x.multiplyScalar(t);
+    x.add(o);
+    x.sub(cA);
+    l = x.dot(axis);
+    L = cB.sub(cA)
+    L2 = L.dot(L)
+    if (l<0.0 || l*l>L2) return {hit:false, t:null};
+    return {hit:true, t:t};
 }
 
 
@@ -285,7 +330,6 @@ Fibre.prototype.boundsRaycast = function(u, v)
     let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
     let size = Math.max(e[0], e[1], e[2]);
 
-    let cornerR = 0.05*size;
     var corners = [
         [o[0],        o[1],        o[2]],         // 000b = 0
         [o[0] + e[0], o[1],        o[2]],         // 001b = 1
@@ -297,17 +341,53 @@ Fibre.prototype.boundsRaycast = function(u, v)
         [o[0] + e[0], o[1] + e[1], o[2] + e[2]]   // 111b = 7
 	];
 
+    let isect_min = {hit: false};
+    let tmin = 1.0e10;
+
+    // raycast center sphere manipulator
+    let sphereR = 0.1 * Math.max(e[0], e[1], e[2]);
+    let center = new THREE.Vector3(o[0] + 0.5*e[0], o[1] + 0.5*e[1], o[2] + 0.5*e[2]);
+    let isect_sphere = this.sphereIntersect(ray, center, sphereR);
+    if (isect_sphere.hit) { isect_min = isect_sphere; tmin = isect_sphere.t };
+
+    // raycast corner cylinder manipulators
+    let cornerR = 0.05 * Math.max(e[0], e[1], e[2]);
+    let outerR = 0.25 * Math.max(e[0], e[1], e[2]);
     for (i = 0; i<corners.length; i++)
     {
         let c = corners[i];
         let C = new THREE.Vector3(c[0], c[1], c[2]);
-         if ( this.sphereIntersect(ray, C, cornerR) )
-         {
-             return {hit: true, type: 'corner', index: i};
-         }
-    }
+        for (axis = 0; axis<3; ++axis)
+        {
+            let L  = e[axis] * 0.4;
+            let Lo = e[axis] * 0.4;
+            let aa = [0, 0, 0];
+            let ab = [0, 0, 0];
+            if (c[axis] - o[axis] > 0.01*size) {
+                aa[axis] = -L; 
+                ab[axis] = outerR;
+            }
+            else {
+                aa[axis] = L; 
+                ab[axis] = -outerR;
+            }
+            let axisVecB = new THREE.Vector3(ab[0], ab[1], ab[2]);
+            let axisVecA = new THREE.Vector3(aa[0], aa[1], aa[2]);
+    
+            let cA = C.clone();
+            let cB = C.clone();
+            cB.add(axisVecB);
+            cA.add(axisVecA);
 
-    return {hit: false};
+            let isect_corn = this.capsuleIntersect(ray, cA, cB, cornerR)
+            if ( isect_corn.hit && isect_corn.t < tmin )
+            {
+                isect_min = {hit: true, type: 'corner', index: i, axis: axis};
+                tmin = isect_corn.t;
+            }
+        }
+    }
+    return isect_min;
 }
 
    
@@ -451,6 +531,8 @@ Fibre.prototype.onDocumentMouseMove = function(event)
     {        
         // get dragged corner current position
         let corner_index = this.cornerDragging.corner_index;
+        let axis = this.cornerDragging.axis_index;
+
         let bounds = this.getBounds();
         boundsMin = bounds.min;
         boundsMax = bounds.max;
@@ -477,32 +559,63 @@ Fibre.prototype.onDocumentMouseMove = function(event)
         let t = -oc.dot(ray.direction);
         let cnew = ray.origin.clone();
         cnew.addScaledVector(ray.direction, t);
-        var corners = [
-            [o[0],        o[1],        o[2]],         // 000b = 0
-            [o[0] + e[0], o[1],        o[2]],         // 001b = 1
-            [o[0]       , o[1] + e[1], o[2]],         // 010b = 2
-            [o[0] + e[0], o[1] + e[1], o[2]],         // 011b = 3
-            [o[0],        o[1],        o[2] + e[2]],  // 100b = 4
-            [o[0] + e[0], o[1],        o[2] + e[2]],  // 101b = 5
-            [o[0]       , o[1] + e[1], o[2] + e[2]],  // 110b = 6
-            [o[0] + e[0], o[1] + e[1], o[2] + e[2]]   // 111b = 7
-        ];
- 
+
+        if      (axis==0) { cnew.y = c.y; cnew.z = c.z; }
+        else if (axis==1) { cnew.x = c.x; cnew.z = c.z; }
+        else if (axis==2) { cnew.x = c.x; cnew.y = c.y; }
+
         // clip existing corners to the new corner
         for (c=0; c<8; ++c)
         { 
-            if ((corner_index%2)>0)  boundsMax.x = Math.min(cnew.x, boundsMax.x);
-            else                     boundsMin.x = Math.max(cnew.x, boundsMin.x);
-            if ((corner_index%4)>=2) boundsMax.y = Math.min(cnew.y, boundsMax.y);
-            else                     boundsMin.y = Math.max(cnew.y, boundsMin.y);
-            if (corner_index>=4)     boundsMax.z = Math.min(cnew.z, boundsMax.z);
-            else                     boundsMin.z = Math.max(cnew.z, boundsMin.z);
+            if (axis==0) {
+                if ((corner_index%2)>0)  boundsMax.x = Math.min(cnew.x, boundsMax.x);
+                else                     boundsMin.x = Math.max(cnew.x, boundsMin.x); }
+            else if (axis==1) {
+                if ((corner_index%4)>=2) boundsMax.y = Math.min(cnew.y, boundsMax.y);
+                else                     boundsMin.y = Math.max(cnew.y, boundsMin.y); }
+            else if (axis==2) {
+                if (corner_index>=4)     boundsMax.z = Math.min(cnew.z, boundsMax.z);
+                else                     boundsMin.z = Math.max(cnew.z, boundsMin.z); }
         }       
         this.bounds.max = boundsMax;
         this.bounds.min = boundsMin;
       
         // Expand the bounds to accommodate the new corner
         this.bounds.expandByPoint(cnew);
+
+        this.raytracer.resetBounds();
+        this.reset(false);
+    }
+
+    else if (this.centerDragging != null)
+    {
+        let bounds = this.getBounds();
+        boundsMin = bounds.min;
+        boundsMax = bounds.max;
+        let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+        let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+        let c = new THREE.Vector3(o[0] + 0.5*e[0], o[1] + 0.5*e[1], o[2] + 0.5*e[2]);
+
+        // get camera ray at current mouse location
+        let dir = new THREE.Vector3();
+        dir.set( u*2 - 1,
+                -v*2 + 1,
+                 0.5 );
+        dir.unproject(this.camera);
+        dir.sub(this.camera.position).normalize();
+        let ray = {origin:this.camera.position, direction: dir};
+
+         // intersect ray with a plane passing through the current center, orthog. to ray
+        // to compute the new center position
+        let oc = ray.origin.clone();
+        oc.sub(c);
+        let t = -oc.dot(ray.direction);
+        let cnew = ray.origin.clone();
+        cnew.addScaledVector(ray.direction, t);
+        cnew.sub(c);
+
+        this.bounds.max.add(cnew); 
+        this.bounds.min.add(cnew); 
 
         this.raytracer.resetBounds();
         this.reset(false);
@@ -550,7 +663,18 @@ Fibre.prototype.onDocumentMouseDown = function(event)
             this.camControls.enabled = false;
             let u = event.clientX/window.innerWidth;
             let v = event.clientY/window.innerHeight;
-            this.cornerDragging = {u: u, v: v, corner_index:boundsHit.index};
+
+            this.cornerDragging = {u: u, v: v, corner_index:boundsHit.index, axis_index:boundsHit.axis};
+            this.camControls.saveState();
+        }
+
+        if (boundsHit.type == 'center')
+        {
+            this.camControls.enabled = false;
+            let u = event.clientX/window.innerWidth;
+            let v = event.clientY/window.innerHeight;
+
+            this.centerDragging = {u: u, v: v};
             this.camControls.saveState();
         }
     }
@@ -564,6 +688,13 @@ Fibre.prototype.onDocumentMouseUp = function(event)
     if (this.cornerDragging != null)
     {
         this.cornerDragging = null;
+        this.camControls.enabled = true;
+        this.camControls.reset();
+    }
+
+    if (this.centerDragging != null)
+    {
+        this.centerDragging = null;
         this.camControls.enabled = true;
         this.camControls.reset();
     }
