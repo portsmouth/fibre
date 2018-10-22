@@ -135,10 +135,19 @@ void main()
     else
     {
         // @todo: make start points align with grid cell centers
+        X += vec3(rand(seed), rand(seed), rand(seed))*boundsExtent;
+        X = vec3(gridSpace*floor(X.x/gridSpace),
+                 gridSpace*floor(X.y/gridSpace),
+                 gridSpace*floor(X.z/gridSpace));
+
+        X = min(X, boundsMax);
+        X = max(X, boundsMin);
+        /*
         vec3 g = gridSpace / boundsExtent;
         X += vec3(g.x*floor(rand(seed)/g.x), 
                   g.y*floor(rand(seed)/g.y), 
                   g.z*floor(rand(seed)/g.z)) * boundsExtent;
+        */
         float Ct    = 2.0*rand(seed)-1.0;
         float theta = acos(Ct);
         float St    = sin(theta);
