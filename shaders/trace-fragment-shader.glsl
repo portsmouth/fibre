@@ -27,6 +27,22 @@ USER_CODE
 // Integrate vector field
 //////////////////////////////////////////////////////////////
 
+
+#define sort2(a,b) { vec3 tmp=min(a,b); b=a+b-tmp; a=tmp; }
+
+bool boxHit( in vec3 rayPos, in vec3 rayDir, in vec3 bbMin, in vec3 bbMax,
+             inout float t0, inout float t1 )
+{
+    vec3 dL = vec3(1.0f/rayDir.x, 1.0f/rayDir.y, 1.0f/rayDir.z);
+    vec3 lo = (bbMin - rayPos) * dL;
+    vec3 hi = (bbMax - rayPos) * dL;
+    sort2(lo, hi);
+    bool hit = !( lo.x>hi.y || lo.y>hi.x || lo.x>hi.z || lo.z>hi.x || lo.y>hi.z || lo.z>hi.y );
+    t0 = max(max(lo.x, lo.y), lo.z);
+    t1 = min(min(hi.x, hi.y), hi.z);
+    return hit;
+}
+
 void main()
 {
     vec4 X        = texture(PosData, vTexCoord);
@@ -44,18 +60,25 @@ void main()
         vec3 k3 = timestep * velocity(x+0.5*k2, t+0.5*timestep);
         vec3 k4 = timestep * velocity(x+    k3, t+    timestep);
 
-        X.xyz += (k1 + 2.0*k2 + 2.0*k3 + k4)/6.0;
-        X.w   += timestep;
+        vec3 dX = (k1 + 2.0*k2 + 2.0*k3 + k4)/6.0;
+        X.w  += timestep;
+
         if (clipToBounds)
         {
-            X.xyz = min(boundsMax, X.xyz);
-            X.xyz = max(boundsMin, X.xyz);
-            if (X.xyz.x >= boundsMax.x) { X.xyz.x = boundsMax.x; X.w = -1.0; }
-            if (X.xyz.y >= boundsMax.y) { X.xyz.y = boundsMax.y; X.w = -1.0; }
-            if (X.xyz.z >= boundsMax.z) { X.xyz.z = boundsMax.z; X.w = -1.0; }
-            if (X.xyz.x <= boundsMin.x) { X.xyz.x = boundsMin.x; X.w = -1.0; }
-            if (X.xyz.y <= boundsMin.y) { X.xyz.y = boundsMin.y; X.w = -1.0; }
-            if (X.xyz.z <= boundsMin.z) { X.xyz.z = boundsMin.z; X.w = -1.0; }
+            // Clip ray to land on box, if it leaves
+            float dx = length(dX);
+            if (dx > 0.0)
+            {
+                vec3 dir = dX/dx;
+                float t0, t1;
+                boxHit(X.xyz, dir, boundsMin, boundsMax, t0, t1);
+                float l = min(t1, dx);
+                X.xyz += l*dir;
+            }
+        }
+        else
+        {
+            X.xyz += dX;
         }
     }
     

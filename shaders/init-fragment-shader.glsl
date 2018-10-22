@@ -56,8 +56,7 @@ void main()
     }
     else
     {
-        // @todo: make start points align with grid cell centers
-        X += vec3(rand(seed), rand(seed), rand(seed))*boundsExtent;
+        X += vec3(rand(seed), rand(seed), rand(seed))*(boundsExtent+0.5*gridSpace);
         X = vec3(gridSpace*floor(X.x/gridSpace),
                  gridSpace*floor(X.y/gridSpace),
                  gridSpace*floor(X.z/gridSpace));
