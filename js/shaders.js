@@ -75,6 +75,101 @@ void main(void)
 }
 `,
 
+'init-vertex-shader': `#version 300 es
+precision highp float;
+
+in vec3 Position;
+in vec2 TexCoord;
+out vec2 vTexCoord;
+
+void main() 
+{
+	gl_Position = vec4(Position, 1.0);
+	vTexCoord = TexCoord;
+}
+`,
+
+'pass-fragment-shader': `#version 300 es
+precision highp float;
+
+uniform sampler2D WaveBuffer;
+
+in vec2 vTexCoord;
+out vec4 outputColor;
+
+void main() 
+{
+	outputColor = vec4(texture(WaveBuffer, vTexCoord).rgba);
+}
+`,
+
+'pass-vertex-shader': `#version 300 es
+precision highp float;
+
+in vec3 Position;
+in vec2 TexCoord;
+out vec2 vTexCoord;
+
+void main(void)
+{
+	gl_Position = vec4(Position, 1.0);
+	vTexCoord = TexCoord;
+}
+`,
+
+'tonemapper-fragment-shader': `#version 300 es
+precision highp float;
+
+uniform sampler2D Radiance;
+uniform float exposure;
+uniform float invGamma;
+
+varying vec2 vTexCoord;
+
+out vec4 outputColor;
+
+void main()
+{
+	vec3 L = exposure * texture(Radiance, vTexCoord).rgb;
+	float r = L.x; 
+	float g = L.y; 
+	float b = L.z;
+	vec3 Lp = vec3(r/(1.0+r), g/(1.0+g), b/(1.0+b));
+	vec3 S = pow(Lp, vec3(invGamma));
+	
+	outputColor = vec4(S, 1.0);
+}
+`,
+
+'tonemapper-vertex-shader': `#version 300 es
+precision highp float;
+
+in vec3 Position;
+in vec2 TexCoord;
+out vec2 vTexCoord;
+
+void main() 
+{
+	gl_Position = vec4(Position, 1.0);
+	vTexCoord = TexCoord;
+}
+`,
+
+'trace-vertex-shader': `#version 300 es
+precision highp float;
+
+in vec3 Position;
+in vec2 TexCoord;
+
+out vec2 vTexCoord;
+
+void main() 
+{
+	gl_Position = vec4(Position, 1.0);
+	vTexCoord = TexCoord;
+}
+`,
+
 'init-fragment-shader': `#version 300 es
 precision highp float;
 
@@ -164,20 +259,6 @@ void main()
 }
 `,
 
-'init-vertex-shader': `#version 300 es
-precision highp float;
-
-in vec3 Position;
-in vec2 TexCoord;
-out vec2 vTexCoord;
-
-void main() 
-{
-	gl_Position = vec4(Position, 1.0);
-	vTexCoord = TexCoord;
-}
-`,
-
 'line-fragment-shader': `#version 300 es
 precision highp float;
 
@@ -193,13 +274,13 @@ out vec4 outputColor;
 #define oos3 0.57735026919
 const vec3 L = vec3(oos3, oos3, oos3);
 
-void main() 
+void main()
 {
     if (hairShader)
     {
-        float dotTL = dot(T, L);
+        float dotTL = max(0.0, dot(T, L));
         float sinTL = sqrt(max(0.0, 1.0 - dotTL*dotTL));
-        float dotTE = dot(T, -V);
+        float dotTE = max(0.0, dot(T, -V));
         float sinTE = sqrt(max(0.0, 1.0 - dotTE*dotTE));
         vec4 diffuse = vColor * abs(sinTL);
         vec4 specular = vec4(hairSpecColor, 1) * pow(dotTL*dotTE + sinTL*sinTE, hairShine);
@@ -249,72 +330,6 @@ void main()
     gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(pos.xyz, 1.0);
     vColor = mix(colorA, colorB, TexCoord.z);
     T = normalize(posB.xyz - posA.xyz);
-}
-`,
-
-'pass-fragment-shader': `#version 300 es
-precision highp float;
-
-uniform sampler2D WaveBuffer;
-
-in vec2 vTexCoord;
-out vec4 outputColor;
-
-void main() 
-{
-	outputColor = vec4(texture(WaveBuffer, vTexCoord).rgba);
-}
-`,
-
-'pass-vertex-shader': `#version 300 es
-precision highp float;
-
-in vec3 Position;
-in vec2 TexCoord;
-out vec2 vTexCoord;
-
-void main(void)
-{
-	gl_Position = vec4(Position, 1.0);
-	vTexCoord = TexCoord;
-}
-`,
-
-'tonemapper-fragment-shader': `#version 300 es
-precision highp float;
-
-uniform sampler2D Radiance;
-uniform float exposure;
-uniform float invGamma;
-
-varying vec2 vTexCoord;
-
-out vec4 outputColor;
-
-void main()
-{
-	vec3 L = exposure * texture(Radiance, vTexCoord).rgb;
-	float r = L.x; 
-	float g = L.y; 
-	float b = L.z;
-	vec3 Lp = vec3(r/(1.0+r), g/(1.0+g), b/(1.0+b));
-	vec3 S = pow(Lp, vec3(invGamma));
-	
-	outputColor = vec4(S, 1.0);
-}
-`,
-
-'tonemapper-vertex-shader': `#version 300 es
-precision highp float;
-
-in vec3 Position;
-in vec2 TexCoord;
-out vec2 vTexCoord;
-
-void main() 
-{
-	gl_Position = vec4(Position, 1.0);
-	vTexCoord = TexCoord;
 }
 `,
 
@@ -385,21 +400,6 @@ void main()
     gbuf_pos = X;
     gbuf_rgb = vec4(c, 1.0);
     gbuf_rnd = rnd;
-}
-`,
-
-'trace-vertex-shader': `#version 300 es
-precision highp float;
-
-in vec3 Position;
-in vec2 TexCoord;
-
-out vec2 vTexCoord;
-
-void main() 
-{
-	gl_Position = vec4(Position, 1.0);
-	vTexCoord = TexCoord;
 }
 `,
 
