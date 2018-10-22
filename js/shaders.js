@@ -81,13 +81,15 @@ precision highp float;
 uniform sampler2D RngData;
 
 uniform float gridSpace;
-uniform float pointSpread;
+uniform float tubeWidth;
+uniform bool tubeSpread;
 uniform vec3 boundsMin;
 uniform vec3 boundsMax;
 
 layout(location = 0) out vec4 gbuf_pos;
 layout(location = 1) out vec4 gbuf_rgb;
 layout(location = 2) out vec4 gbuf_rnd;
+layout(location = 3) out vec4 gbuf_off;
 
 in vec2 vTexCoord;
 
@@ -124,6 +126,7 @@ void main()
     vec4 seed = texture(RngData, vTexCoord);
     vec3 boundsExtent = boundsMax - boundsMin;
     vec3 X = boundsMin;
+    vec3 offset = vec3(0.0);
 
     if (gridSpace < FLT_EPSILON)
     {
@@ -132,7 +135,6 @@ void main()
     else
     {
         // @todo: make start points align with grid cell centers
-        
         vec3 g = gridSpace / boundsExtent;
         X += vec3(g.x*floor(rand(seed)/g.x), 
                   g.y*floor(rand(seed)/g.y), 
@@ -143,13 +145,22 @@ void main()
         float phi   = rand(seed)*2.0*M_PI;
         float Sp = sin(phi);
         float Cp = cos(phi);
-        vec3 dX = pointSpread * gridSpace * vec3(St*Cp, St*Sp, Ct);
-        X += dX;
+        
+        vec3 dX = tubeWidth * gridSpace * vec3(St*Cp, St*Sp, Ct);
+        if (tubeSpread)
+        {
+            X += dX;
+        }
+        else
+        {
+            offset = dX;
+        }
     }
 
     gbuf_pos = vec4(X, 0.0);
     gbuf_rgb = vec4(color(X, 0.0), 1.0);
     gbuf_rnd = seed;
+    gbuf_off = vec4(offset, 0.0);
 }
 `,
 
@@ -171,11 +182,33 @@ void main()
 precision highp float;
 
 in vec4 vColor;
+in vec3 T;
+uniform vec3 V;
+uniform bool hairShader;
+uniform float hairShine;
+uniform vec3 hairSpecColor;
+
 out vec4 outputColor;
+
+#define oos3 0.57735026919
+const vec3 L = vec3(oos3, oos3, oos3);
 
 void main() 
 {
-    outputColor = vColor;
+    if (hairShader)
+    {
+        float dotTL = dot(T, L);
+        float sinTL = sqrt(max(0.0, 1.0 - dotTL*dotTL));
+        float dotTE = dot(T, -V);
+        float sinTE = sqrt(max(0.0, 1.0 - dotTE*dotTE));
+        vec4 diffuse = vColor * abs(sinTL);
+        vec4 specular = vec4(hairSpecColor, 1) * pow(dotTL*dotTE + sinTL*sinTE, hairShine);
+        outputColor = diffuse + specular;
+    }
+    else
+    {
+        outputColor = vColor;
+    }
 }
 `,
 
@@ -186,25 +219,36 @@ uniform sampler2D PosDataA;
 uniform sampler2D PosDataB;
 uniform sampler2D RgbDataA;
 uniform sampler2D RgbDataB;
+uniform sampler2D OffsetData;
 uniform mat4 u_projectionMatrix;
 uniform mat4 u_modelViewMatrix;
 
+uniform bool tubeSpread;
+
 in vec3 TexCoord;
 out vec4 vColor;
+out vec3 T;
 
 void main()
 {
-	// Textures A and B contain line segment start and end points respectively
-	// (i.e. the geometry defined by this vertex shader is stored in textures)
-	vec4 posA   = texture(PosDataA, TexCoord.xy);
-	vec4 posB   = texture(PosDataB, TexCoord.xy);
+    // Textures A and B contain line segment start and end points respectively
+    // (i.e. the geometry defined by this vertex shader is stored in textures)
+    vec4 posA   = texture(PosDataA, TexCoord.xy);
+    vec4 posB   = texture(PosDataB, TexCoord.xy);
     vec4 colorA = texture(RgbDataA, TexCoord.xy);
     vec4 colorB = texture(RgbDataB, TexCoord.xy);
 
-	// Line segment vertex position (either posA or posB)
-	vec4 pos = mix(posA, posB, TexCoord.z);
-	gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(pos.xyz, 1.0);
-	vColor = mix(colorA, colorB, TexCoord.z);
+    // Line segment vertex position (either posA or posB)
+    vec4 pos = mix(posA, posB, TexCoord.z);
+    if (!tubeSpread)
+    {
+        vec4 offset = texture(OffsetData, TexCoord.xy);
+        pos.xyz += offset.xyz;
+    }
+
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(pos.xyz, 1.0);
+    vColor = mix(colorA, colorB, TexCoord.z);
+    T = normalize(posB.xyz - posA.xyz);
 }
 `,
 
@@ -281,6 +325,9 @@ uniform sampler2D PosData;
 uniform sampler2D RgbData;
 uniform sampler2D RngData;
 
+uniform bool clipToBounds;
+uniform vec3 boundsMin;
+uniform vec3 boundsMax;
 uniform float timestep;
 
 layout(location = 0) out vec4 gbuf_pos;
@@ -307,18 +354,32 @@ void main()
     vec4 rgbw     = texture(RgbData, vTexCoord);
     vec4 rnd      = texture(RngData, vTexCoord);
     
-    vec3 x = X.xyz;
     float t = X.w;
+    if (!clipToBounds || t>=0.0)
+    {
+        vec3 x = X.xyz;
+        
+        // Integrate ODE with 4th order Runge-Kutta method
+        vec3 k1 = timestep * velocity(x,        t             );
+        vec3 k2 = timestep * velocity(x+0.5*k1, t+0.5*timestep);
+        vec3 k3 = timestep * velocity(x+0.5*k2, t+0.5*timestep);
+        vec3 k4 = timestep * velocity(x+    k3, t+    timestep);
+
+        X.xyz += (k1 + 2.0*k2 + 2.0*k3 + k4)/6.0;
+        X.w   += timestep;
+        if (clipToBounds)
+        {
+            X.xyz = min(boundsMax, X.xyz);
+            X.xyz = max(boundsMin, X.xyz);
+            if (X.xyz.x >= boundsMax.x) { X.xyz.x = boundsMax.x; X.w = -1.0; }
+            if (X.xyz.y >= boundsMax.y) { X.xyz.y = boundsMax.y; X.w = -1.0; }
+            if (X.xyz.z >= boundsMax.z) { X.xyz.z = boundsMax.z; X.w = -1.0; }
+            if (X.xyz.x <= boundsMin.x) { X.xyz.x = boundsMin.x; X.w = -1.0; }
+            if (X.xyz.y <= boundsMin.y) { X.xyz.y = boundsMin.y; X.w = -1.0; }
+            if (X.xyz.z <= boundsMin.z) { X.xyz.z = boundsMin.z; X.w = -1.0; }
+        }
+    }
     
-    // Integrate ODE with 4th order Runge-Kutta method
-    vec3 k1 = timestep * velocity(x,        t             );
-    vec3 k2 = timestep * velocity(x+0.5*k1, t+0.5*timestep);
-    vec3 k3 = timestep * velocity(x+0.5*k2, t+0.5*timestep);
-    vec3 k4 = timestep * velocity(x+    k3, t+    timestep);
-
-    X.xyz += (k1 + 2.0*k2 + 2.0*k3 + k4)/6.0;
-    X.w   += timestep;
-
     vec3 c = color(X.xyz, X.w);
 
     gbuf_pos = X;

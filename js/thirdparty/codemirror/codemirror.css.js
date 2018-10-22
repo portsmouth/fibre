@@ -407,7 +407,7 @@ span.CodeMirror-selectedtext { background: none; }
     font-size: 12px;
     top: 80vh;
     width: 80vw;
-    color: black;
+    color: grey;
     direction: ltr;
     opacity: 0.75;
 }

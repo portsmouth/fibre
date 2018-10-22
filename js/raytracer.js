@@ -42,7 +42,6 @@ RayState.prototype.attach = function(fbo)
 
 RayState.prototype.detach = function(fbo)
 {
-    var gl = GLU.gl;
     fbo.detachTexture(0);
     fbo.detachTexture(1);
     fbo.detachTexture(2);
@@ -63,17 +62,28 @@ var Raytracer = function()
     var gl = GLU.gl;
 
     // Initialize textures containing ray states
-    this.raySize = 8; //128;
+    this.raySize = 128;
     this.enabled = true;
     this.pathLength = 0;
     this.initStates();
 
-    this.maxTimeSteps = 32; //256;
-    this.integrationTime = 1.0;
-    this.gridSpace = 0.01;
-    this.pointSpread = 0.1;
-    this.exposure = 3.0;
+    this.waveBuffer = null;
+    this.offsetTex = null;
+    this.depthBuffer = null;
+    this.fluenceBuffer = null;
+
+    this.maxTimeSteps = 128;
+    this.integrationTime = 10.0;
+    this.gridSpace = 0.5;
+    this.tubeWidth = 0.01;
+    this.tubeSpread = false;
+    this.exposure = 10.0;
     this.gamma = 2.2;
+    this.hairShader = true;
+    this.hairShine = 10.0;
+    this.hairSpecColor = [1.0, 1.0, 1.0];
+    this.depthTest = false;
+    this.clipToBounds = true;
 
     this.xmin = 0.0001;
     this.xmax = 0.0001;
@@ -91,10 +101,12 @@ var Raytracer = function()
     this.shaderSources = GLU.resolveShaderSource(["init", "trace", "line", "box", "comp", "pass"]);
 
     // Initialize GL
-    this.fbo = new GLU.RenderTarget();
+    this.ray_fbo = new GLU.RenderTarget();
+    this.img_fbo = new GLU.RenderTarget();
+    this.tmp_fbo = new GLU.RenderTarget();
+
+    this.initStates();
 }
-
-
 
 Raytracer.prototype.createQuadVbo = function()
 {
@@ -196,7 +208,7 @@ Raytracer.prototype.createBoxCornerVbos = function()
     let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
     let s = 0.666;
 
-    let outerR = 0.5 * Math.max(e[0], e[1], e[2]);
+    let outerR = 0.2 * Math.max(e[0], e[1], e[2]);
 
     this.cornerVbos = [];
     for (c=0; c<8; ++c)
@@ -240,7 +252,6 @@ Raytracer.prototype.resetBounds = function()
     let bounds = fibre.getBounds();
     boundsMin = bounds.min;
     boundsMax = bounds.max;
-
     this.xmin = boundsMin.x;
     this.ymin = boundsMin.y;
     this.zmin = boundsMin.z;
@@ -259,17 +270,16 @@ Raytracer.prototype.reset = function(no_recompile)
 
     if (!no_recompile)
         this.compileShaders();
-    this.initStates();
     this.resetBounds();
 
     // Clear fluence buffers
     let gl = GLU.gl;
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    this.fbo.bind();
-    this.fbo.drawBuffers(1);
-    this.fbo.attachTexture(this.fluenceBuffer, 0);
+    this.tmp_fbo.bind();
+    this.tmp_fbo.drawBuffers(1);
+    this.tmp_fbo.attachTexture(this.fluenceBuffer, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    this.fbo.unbind();
+    this.tmp_fbo.unbind();
 
     this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
 }
@@ -281,6 +291,15 @@ Raytracer.prototype.compileShaders = function()
     this.boxProgram   = new GLU.Shader('box',   this.shaderSources, null);
     this.compProgram  = new GLU.Shader('comp',  this.shaderSources, null);
     this.passProgram  = new GLU.Shader('pass',  this.shaderSources, null);
+
+    if (!this.lineProgram.program || 
+        !this.boxProgram.program  || 
+        !this.compProgram.program || 
+        !this.passProgram.program)
+    {   
+        this.enabled = false;
+        return;
+    } 
 
     let glsl = fibre.getGlsl();
 
@@ -306,6 +325,7 @@ Raytracer.prototype.compileShaders = function()
         return;
     }
 
+    this.enabled = true;
     fibre.disable_errors();
 }
 
@@ -316,7 +336,10 @@ Raytracer.prototype.initStates = function()
     this.rayCount = this.raySize*this.raySize;
     this.currentState = 0;
     this.rayStates = [new RayState(this.raySize), new RayState(this.raySize)];
-        
+    
+    if (this.offsetTex) this.offsetTex.delete();
+    this.offsetTex = new GLU.Texture(this.raySize, this.raySize, 4, true, false, true, null);
+
     // Create the buffer of texture coordinates, which maps each drawn line
     // to its corresponding texture lookup.
     {
@@ -358,7 +381,8 @@ Raytracer.prototype.composite = function()
 
     // Normalize the emission by dividing by the total number of paths
     // (and also apply gamma correction)
-    this.compProgram.uniformF("invNumRays", 1.0/Math.max(this.raysTraced, 1));
+    let Nrays = Math.max(this.raysTraced, 1);
+    this.compProgram.uniformF("invNumRays", this.depthTest ? 10.0/Nrays : 1.0/Nrays);
     this.compProgram.uniformF("exposure", this.exposure);
     this.compProgram.uniformF("invGamma", 1.0/this.gamma);
 
@@ -393,6 +417,7 @@ Raytracer.prototype.render = function()
     matrixWorldInverse.getInverse( camera.matrixWorld );
     var modelViewMatrix = matrixWorldInverse.toArray();
     var projectionMatrix = camera.projectionMatrix.toArray();
+    let camDir = camera.getWorldDirection();
     
     // Get grid bounds
     let bounds = fibre.getBounds();
@@ -402,15 +427,12 @@ Raytracer.prototype.render = function()
     // Clear wavebuffer
     if (this.traceProgram)
     {
-        this.fbo.bind();
-        this.quadVbo.bind();
-        this.fbo.drawBuffers(1);
+        this.img_fbo.bind();
         gl.viewport(0, 0, this.width, this.height);
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clearDepth(1.0);
-        this.fbo.attachTexture(this.waveBuffer, 0); // write to wavebuffer
-        gl.disable(gl.DEPTH_TEST);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        this.img_fbo.unbind();
     }
 
     // Initialize ray start points, colors, and random seeds
@@ -419,11 +441,18 @@ Raytracer.prototype.render = function()
         gl.disable(gl.BLEND);
         gl.viewport(0, 0, this.raySize, this.raySize);
 
-        this.fbo.drawBuffers(3);
+        this.ray_fbo.bind();
+        this.ray_fbo.drawBuffers(4);
         let current = this.currentState;
         let next = 1 - current;
-        
-        this.rayStates[next].attach(this.fbo);
+        this.rayStates[next].attach(this.ray_fbo);
+        this.ray_fbo.attachTexture(this.offsetTex, 3);
+
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE)
+        {
+            GLU.fail("Invalid framebuffer");
+        }
+
         this.quadVbo.bind();
         this.initProgram.bind(); // Start all rays at emission point(s)
         this.rayStates[current].rngTex.bind(0); // Read random seed from the current state
@@ -431,10 +460,13 @@ Raytracer.prototype.render = function()
         this.initProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
         this.initProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
         this.initProgram.uniformF("gridSpace", this.gridSpace);
-        this.initProgram.uniformF("pointSpread", this.pointSpread);
+        this.initProgram.uniformF("tubeWidth", this.tubeWidth);
+        this.initProgram.uniformI("tubeSpread", this.tubeSpread);
 
         this.quadVbo.draw(this.initProgram, gl.TRIANGLE_FAN);
         this.currentState = 1 - this.currentState;
+        this.ray_fbo.detachTexture(3);
+        this.ray_fbo.unbind();
     }
 
     // Prepare raytracing program
@@ -443,11 +475,19 @@ Raytracer.prototype.render = function()
         this.traceProgram.bind();
         let timestep = this.integrationTime / this.maxTimeSteps;
         this.traceProgram.uniformF("timestep", timestep);
+        this.traceProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
+        this.traceProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
+        this.traceProgram.uniformI("clipToBounds", this.clipToBounds);
     }
 
     // Prepare line drawing program
     {
         this.lineProgram.bind();
+        this.lineProgram.uniformI("hairShader", this.hairShader);
+        this.lineProgram.uniformF("hairShine", this.hairShine);
+        this.lineProgram.uniform3Fv("hairSpecColor", this.hairSpecColor);
+        this.lineProgram.uniform3Fv("V", [camDir.x, camDir.y, camDir.z]);
+        this.lineProgram.uniformI("tubeSpread", this.tubeSpread);
 
         // Setup projection matrix
         var projectionMatrixLocation = this.lineProgram.getUniformLocation("u_projectionMatrix");
@@ -471,37 +511,52 @@ Raytracer.prototype.render = function()
             // Propagate the current set of rays through the vector field, generating new ray pos/dir data in 'next' rayStates textures
             {
                 gl.viewport(0, 0, this.raySize, this.raySize);
-                this.fbo.drawBuffers(3);
-                this.rayStates[next].attach(this.fbo);
+                this.ray_fbo.bind();
+                this.ray_fbo.drawBuffers(3);
+                this.rayStates[next].attach(this.ray_fbo);
                 this.quadVbo.bind();
 
                 this.traceProgram.bind();
                 this.rayStates[current].bind(this.traceProgram);       // Use the current state as the initial conditions
                 this.quadVbo.draw(this.traceProgram, gl.TRIANGLE_FAN); // Generate the next ray state
-                this.rayStates[next].detach(this.fbo)
+                this.rayStates[next].detach(this.ray_fbo);
+                this.ray_fbo.unbind();
             }
 
             // Read this data to draw the next 'wavefront' of rays (i.e. line segments) into the wave buffer
             {
+                this.img_fbo.bind();
+                
                 gl.viewport(0, 0, this.width, this.height);
-                gl.disable(gl.DEPTH_TEST);
-                this.fbo.drawBuffers(1);
 
-                // The float radiance channels of all lines are simply added each pass
-                gl.blendFunc(gl.ONE, gl.ONE); // accumulate line segment radiances
-                gl.enable(gl.BLEND);
+                if (this.depthTest)
+                {
+                    gl.enable(gl.DEPTH_TEST);
+                    gl.disable(gl.BLEND);
+                }
+                else
+                {
+                    gl.disable(gl.DEPTH_TEST);
+                    // The float radiance channels of all lines are simply added each pass
+                    gl.blendFunc(gl.ONE, gl.ONE); // accumulate line segment radiances
+                    gl.enable(gl.BLEND);
+                }
+                
                 this.lineProgram.bind();
                 this.rayStates[current].posTex.bind(0); // read PosDataA = current.posTex
                 this.rayStates[   next].posTex.bind(1); // read PosDataB = next.posTex
                 this.rayStates[current].rgbTex.bind(2); // read RgbDataA = current.rgbTex
                 this.rayStates[   next].rgbTex.bind(3); // read RgbDataB = next.rgbTex
+                this.offsetTex.bind(4);
+
                 this.lineProgram.uniformTexture("PosDataA", this.rayStates[current].posTex);
                 this.lineProgram.uniformTexture("PosDataB", this.rayStates[   next].posTex);
                 this.lineProgram.uniformTexture("RgbDataA", this.rayStates[current].rgbTex);
                 this.lineProgram.uniformTexture("RgbDataB", this.rayStates[   next].rgbTex);
+                this.lineProgram.uniformTexture("OffsetData", this.offsetTex);
                 this.rayVbo.bind(); // Binds the TexCoord attribute
-                this.fbo.attachTexture(this.waveBuffer, 0); // write to wavebuffer
                 this.rayVbo.draw(this.lineProgram, gl.LINES, this.raySize*this.raySize*2);
+                this.img_fbo.unbind();
                 gl.disable(gl.BLEND);
             }
 
@@ -515,14 +570,15 @@ Raytracer.prototype.render = function()
             gl.enable(gl.BLEND);
             gl.blendFunc(gl.ONE, gl.ONE); // accumulate radiances of all line segments from current 'wave' of bounces
             this.quadVbo.bind();
-            this.fbo.attachTexture(this.fluenceBuffer, 0); // write to fluence buffer
+            this.tmp_fbo.bind();
+            this.tmp_fbo.attachTexture(this.fluenceBuffer, 0); // write to fluence buffer
             this.waveBuffer.bind(0);                       // read from wave buffer
             this.passProgram.bind();
             this.passProgram.uniformTexture("WaveBuffer", this.waveBuffer);
             this.quadVbo.draw(this.passProgram, gl.TRIANGLE_FAN);
+            this.tmp_fbo.unbind();
         }
 
-        this.fbo.unbind();
         gl.disable(gl.BLEND);
 
         // Final composite of normalized fluence to window
@@ -533,6 +589,7 @@ Raytracer.prototype.render = function()
     // Draw grid bounds
     {
         gl.enable(gl.BLEND);
+        gl.disable(gl.DEPTH_TEST);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         this.boxProgram.bind();
         let boundsHit = fibre.boundsHit;
@@ -586,9 +643,24 @@ Raytracer.prototype.render = function()
 
 Raytracer.prototype.resize = function(width, height)
 {
-	this.width = width;
-	this.height = height;
-	this.waveBuffer    = new GLU.Texture(width, height, 4, true, false, true, null);
-	this.fluenceBuffer = new GLU.Texture(width, height, 4, true, false, true, null);
-	this.reset();
+    let gl = GLU.gl;
+
+    this.width = width;
+    this.height = height;
+    if (this.waveBuffer) this.waveBuffer.delete();
+    this.waveBuffer = new GLU.Texture(width, height, 4, true, false, true, null);
+    
+    this.img_fbo.bind();
+    this.img_fbo.attachTexture(this.waveBuffer, 0);
+    this.img_fbo.drawBuffers(1);
+    if (this.depthBuffer) gl.deleteRenderbuffer(this.depthBuffer);
+    this.depthBuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this.depthBuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.depthBuffer);
+    this.img_fbo.unbind();
+
+    if (this.fluenceBuffer) this.fluenceBuffer.delete();
+    this.fluenceBuffer = new GLU.Texture(width, height, 4, true, false, true, null);
+    this.reset();
 }

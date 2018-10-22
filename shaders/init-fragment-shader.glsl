@@ -3,13 +3,15 @@ precision highp float;
 uniform sampler2D RngData;
 
 uniform float gridSpace;
-uniform float pointSpread;
+uniform float tubeWidth;
+uniform bool tubeSpread;
 uniform vec3 boundsMin;
 uniform vec3 boundsMax;
 
 layout(location = 0) out vec4 gbuf_pos;
 layout(location = 1) out vec4 gbuf_rgb;
 layout(location = 2) out vec4 gbuf_rnd;
+layout(location = 3) out vec4 gbuf_off;
 
 in vec2 vTexCoord;
 
@@ -46,6 +48,7 @@ void main()
     vec4 seed = texture(RngData, vTexCoord);
     vec3 boundsExtent = boundsMax - boundsMin;
     vec3 X = boundsMin;
+    vec3 offset = vec3(0.0);
 
     if (gridSpace < FLT_EPSILON)
     {
@@ -54,7 +57,6 @@ void main()
     else
     {
         // @todo: make start points align with grid cell centers
-        
         vec3 g = gridSpace / boundsExtent;
         X += vec3(g.x*floor(rand(seed)/g.x), 
                   g.y*floor(rand(seed)/g.y), 
@@ -65,11 +67,20 @@ void main()
         float phi   = rand(seed)*2.0*M_PI;
         float Sp = sin(phi);
         float Cp = cos(phi);
-        vec3 dX = pointSpread * gridSpace * vec3(St*Cp, St*Sp, Ct);
-        X += dX;
+        
+        vec3 dX = tubeWidth * gridSpace * vec3(St*Cp, St*Sp, Ct);
+        if (tubeSpread)
+        {
+            X += dX;
+        }
+        else
+        {
+            offset = dX;
+        }
     }
 
     gbuf_pos = vec4(X, 0.0);
     gbuf_rgb = vec4(color(X, 0.0), 1.0);
     gbuf_rnd = seed;
+    gbuf_off = vec4(offset, 0.0);
 }

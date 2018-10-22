@@ -118,37 +118,85 @@ function onLoad()
     error_editor.setOption("theme", 'monokai');
     error_editor.setValue('test');
 
-    this.code = `
-///////////////////////////////////////////
+    let lorenz = `
+///////////////////////////////////////////s
 // Lorenz attractor
 ///////////////////////////////////////////
 
-const float rho = 8.0;      // auto-creates a float slider, driving this parameter
+const float rho = 0.9;     
 const float sigma = 1.0;
-const float beta = 8.0/3.0;
+const float beta = 2.0/3.0;
 
-const vec3 colA = vec3(1, 0, 1);
-const vec3 colB = vec3(1, 1, 0);
-const float wavelength = 0.1;
+const vec3 colLo = vec3(0, 0, 1);
+const vec3 colHi = vec3(1, 0, 0);
+const float magScale = 0.5;
+
+ vec3 velocity(vec3 p, float t)
+ {
+     vec3 v;
+     float x = p.x;
+     float y = p.y;
+     float z = p.z;
+     v.x = sigma*(y - x);
+     v.y = x*(rho - z);
+     v.z = x*y - beta*z;
+     return v;
+ }    
+ 
+vec3 color(vec3 p, float t)
+{
+    vec3 E = velocity(p, t);
+  	float mag2 = dot(E,E) / (magScale*magScale);
+    float lerp = mag2/(1.0+mag2);
+    return (1.0-lerp)*colLo + lerp*colHi;
+}  
+`;
+
+    let dipole = `
+///////////////////////////////////////////s
+// Dipole
+///////////////////////////////////////////
+
+const vec3 colLo = vec3(0, 0, 1);
+const vec3 colHi = vec3(1, 0, 0);
+const float magScale = 2.0;
+
+vec3 E(float q, in vec3 p, vec3 c)
+{
+    vec3 pc = p - c;
+    float r2 = dot(pc, pc);
+    vec3 E = q * (p-c) / (pow(r2, 1.5) + 1.0e-2);
+    return E;
+}
 
 vec3 velocity(vec3 p, float t)
 {
-    vec3 v;
-    float x = p.x;
-    float y = p.y;
-    float z = p.z;
-    v.x = sigma*(y - x);
-    v.y = x*(rho - z);
-    v.z = x*y - beta*z;
-    return v;
+    vec3 x0 = vec3(0,  0.5, 0);
+    vec3 x1 = vec3(0, -0.5, 0);
+    return E(1.0, p, x0) + E(-1.0, p, x1);
 }    
 
 vec3 color(vec3 p, float t)
 {
-    float phase = cos(t/wavelength);
-    return cos(phase)*colA + sin(phase)*colB;
+    vec3 E = velocity(p, t);
+  	float mag2 = dot(E,E) / (magScale*magScale);
+    float lerp = mag2/(1.0+mag2);
+    return (1.0-lerp)*colLo + lerp*colHi;
 }  
 `;
+
+    let x_field = `
+    vec3 velocity(vec3 p, float t)
+    {
+        return vec3(cos(p.y), sin(p.x), 1.0);
+    }    
+    vec3 color(vec3 p, float t)
+    {
+        return vec3(1,1,1);
+    }  
+    `;
+
+    this.code = lorenz;
 
     editor.setValue(this.code);
 

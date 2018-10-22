@@ -30,9 +30,22 @@
         gl = _gl;
 
         //console.log('Supported webGL extensions: ' + gl.getSupportedExtensions());
-        this.floatBufExt = gl.getExtension("EXT_color_buffer_float");
-        this.floatLinExt = gl.getExtension("OES_texture_float_linear");
-        if (!this.floatBufExt || !this.floatLinExt) this.fail("Your platform does not support float textures");
+        if (gl.getSupportedExtensions().indexOf("EXT_frag_depth") >= 0)
+        {
+            this.depthExt = gl.getExtension("EXT_frag_depth");
+            if (!this.depthExt) this.fail("Your platform does not support EXT_frag_depth");
+        }
+        if (gl.getSupportedExtensions().indexOf("EXT_color_buffer_float") >= 0)
+        {
+            this.floatBufExt = gl.getExtension("EXT_color_buffer_float");
+            if (!this.floatBufExt) this.fail("Your platform does not support EXT_color_buffer_float");
+        }
+        if (gl.getSupportedExtensions().indexOf("OES_texture_float_linear") >= 0)
+        {
+            this.floatLinExt = gl.getExtension("OES_texture_float_linear");
+            if (!this.floatLinExt) this.fail("Your platform does not support OES_texture_float_linear");
+        }
+        
     }
 
     this.glTypeSize = function(type) 
@@ -418,7 +431,7 @@
     ///////////////////////////////////////////////////
     // GLU.Texture object
     ///////////////////////////////////////////////////
-
+ 
     this.Texture = function(width, height, channels, isFloat, isLinear, isClamped, texels) 
     {
         this.width  = width;
@@ -438,6 +451,11 @@
         this.setFilter();
         
         this.boundUnit = -1;
+    }
+
+    this.Texture.prototype.delete = function()
+    {
+        gl.deleteTexture(this.glName);
     }
 
     this.Texture.prototype.copy = function(texels) 
@@ -547,11 +565,17 @@
         var sorryP = document.createElement("p"); 
         sorryP.appendChild(document.createTextNode("[Fibre] error occurred:"));
         sorryP.style.fontSize = "32px";
+        sorryP.style.fontFamily = 'courier';
         sorryP.style.color = 'red';
+        sorryP.style.position = 'absolute';
+        sorryP.style.top = '0px';
 
         var failureP = document.createElement("p");
         failureP.className = "warning-box";
         failureP.style.fontSize = "24px";
+        failureP.style.fontFamily = 'courier';
+        failureP.style.position = 'absolute';
+        failureP.style.top = '40px';
         failureP.innerHTML = '<pre>' + '    ' + message + '</pre>';
 
         var failureDiv = document.createElement("div"); 
@@ -562,6 +586,9 @@
         document.getElementById("container").appendChild(failureDiv);
         this.canvas.style.display = 'none';
 
+        $(fibre.editor.getWrapperElement()).hide();
+        $(fibre.error_editor.getWrapperElement()).hide();
+        $("#toggle-code-button").hide();
         fibre.terminated = true;
         throw new Error("Terminating Fibre");
     }

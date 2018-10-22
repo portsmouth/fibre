@@ -203,7 +203,7 @@ Fibre.prototype.getGlsl= function()
 Fibre.prototype.initField = function()
 {
     // bounds will be specified by text fields and in URL, and also via some in-viewport UI
-    this.bounds = new THREE.Box3(new THREE.Vector3(-0.5, -0.5, -0.5), new THREE.Vector3(0.5, 0.5, 0.5));
+    this.bounds = new THREE.Box3(new THREE.Vector3(-2, -2, -2), new THREE.Vector3(2, 2, 2));
     size = new THREE.Vector3();
     this.bounds.size(size);
     let lengthScale = size.length();
@@ -271,6 +271,9 @@ Fibre.prototype.compile_error = function(shaderName, shaderTypeStr, error_log)
     this.error_editor.clearHistory();
 
     errStr = '';
+    prefix = '';
+    if (shaderName != 'trace')
+        prefix = "[" + shaderName + " shader]";
 
     console.log("Compile error: ");
     console.log("\t\tshaderName: ", shaderName);
@@ -283,11 +286,13 @@ Fibre.prototype.compile_error = function(shaderName, shaderTypeStr, error_log)
         {
             const traceShaderLineStart = 20;
             let lineNum = Math.max(m ? parseInt(m[1]) : 0, 0) - traceShaderLineStart;
+            console.log(lineNum);
             error = error.replace(errorRE, "");
             error = error.replace('ERROR:', "");
             error = error.trim();
+
             if (error)
-                errStr += '\t→ Error on line ' + lineNum + ': ' + error + '\n';
+                errStr += prefix + '\t→ Error on line ' + lineNum + ': ' + error + '\n';
         }
     });
 
@@ -402,7 +407,7 @@ Fibre.prototype.boundsRaycast = function(u, v)
 
     // raycast corner cylinder manipulators
     let cornerR = 0.05 * Math.max(e[0], e[1], e[2]);
-    let outerR = 0.5 * Math.max(e[0], e[1], e[2]);
+    let outerR = 0.2 * Math.max(e[0], e[1], e[2]);
     for (i = 0; i<corners.length; i++)
     {
         let c = corners[i];
@@ -860,7 +865,6 @@ Fibre.prototype.onkeydown = function(event)
 
 function camChanged()
 {
-    console.log('cam changed');
     //if (!fibre.rendering)
     {
         var no_recompile = true;

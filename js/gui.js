@@ -56,21 +56,49 @@ GUI.prototype.createRaytracerSettings = function()
     var raytracer = fibre.getRaytracer();
 
     this.rendererFolder.add(raytracer, 'maxTimeSteps', 4, 4096).onChange( function(value) { raytracer.maxTimeSteps = Math.floor(value); raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer, 'raySize', 4, 1024).onChange( function(value) { raytracer.raySize = Math.floor(value); raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'raySize', 4, 1024).onChange( function(value) { raytracer.raySize = Math.floor(value); raytracer.initStates(); raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'integrationTime', 0.1, 1000.0).onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer, 'gridSpace', 0.0, 1.0).onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer, 'pointSpread', 0.0, 1.0).onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'gridSpace', 0.0, 10.0).onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'tubeWidth', 0.0, 1.0).onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'tubeSpread').onChange( function(value) { raytracer.reset(true); } );
 
     this.rendererFolder.add(raytracer, 'exposure', -10.0, 10.0);
     this.rendererFolder.add(raytracer, 'gamma', 0.0, 3.0);
 
+    this.rendererFolder.add(raytracer, 'hairShader').onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'hairShine', 0.0, 100.0).onChange( function(value) { raytracer.reset(true); } );
+    
+    this.raytracerSettings.hairSpecColor = [raytracer.hairSpecColor[0]*255.0, 
+                                            raytracer.hairSpecColor[1]*255.0, 
+                                            raytracer.hairSpecColor[2]*255.0];
+    this.rendererFolder.addColor(this.raytracerSettings, 'hairSpecColor').onChange( function(value) 
+        { 
+            if (typeof value==='string' || value instanceof String)
+            {
+                var color = hexToRgb(value);
+                raytracer.hairSpecColor[0] = color.r / 255.0;
+                raytracer.hairSpecColor[1] = color.g / 255.0;
+                raytracer.hairSpecColor[2] = color.b / 255.0;
+            }
+            else
+            {
+                raytracer.hairSpecColor[0] = value[0] / 255.0;
+                raytracer.hairSpecColor[1] = value[1] / 255.0;
+                raytracer.hairSpecColor[2] = value[2] / 255.0;
+            }
+            raytracer.reset(true);
+        });
+
     this.rendererFolder.add(raytracer, 'xmin').onChange( function(value) { if (fibre.get_xmax() < value) raytracer.xmin = fibre.get_xmax(); else fibre.set_xmin(value); });
-    this.rendererFolder.add(raytracer, 'ymin').onChange( function(value) { if (fibre.get_ymax() < value) raytracer.ymin = fibre.get_ymax(); else fibre.set_ymin(value); });
-    this.rendererFolder.add(raytracer, 'zmin').onChange( function(value) { if (fibre.get_zmax() < value) raytracer.zmin = fibre.get_zmax(); else fibre.set_zmin(value); });
     this.rendererFolder.add(raytracer, 'xmax').onChange( function(value) { if (fibre.get_xmin() > value) raytracer.xmax = fibre.get_xmin(); else fibre.set_xmax(value); });
+    this.rendererFolder.add(raytracer, 'ymin').onChange( function(value) { if (fibre.get_ymax() < value) raytracer.ymin = fibre.get_ymax(); else fibre.set_ymin(value); });  
     this.rendererFolder.add(raytracer, 'ymax').onChange( function(value) { if (fibre.get_ymin() > value) raytracer.ymax = fibre.get_ymin(); else fibre.set_ymax(value); });
+    this.rendererFolder.add(raytracer, 'zmin').onChange( function(value) { if (fibre.get_zmax() < value) raytracer.zmin = fibre.get_zmax(); else fibre.set_zmin(value); });
     this.rendererFolder.add(raytracer, 'zmax').onChange( function(value) { if (fibre.get_zmin() > value) raytracer.zmax = fibre.get_zmin(); else fibre.set_zmax(value); });
 
+    this.rendererFolder.add(raytracer, 'depthTest').onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'clipToBounds').onChange( function(value) { raytracer.reset(true); } );
+    
     this.rendererFolder.close();
 }
 
