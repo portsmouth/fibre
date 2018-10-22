@@ -13,6 +13,7 @@ var codemirror_css_rules = `
   position: relative;
   direction: ltr;
   opacity: 0.75;
+  border-right: 1px solid #ccc;
 }
 
 .CodeMirror-scroll { max-height: 70vh; }
@@ -369,6 +370,7 @@ span.CodeMirror-selectedtext { background: none; }
 .cm-s-lucario.CodeMirror, .cm-s-lucario .CodeMirror-gutters {
   background-color: #2b3e50 !important;
   color: #f8f8f2 !important;
+  border: 1px solid #5a5;
 }
 .cm-s-lucario .CodeMirror-gutters { color: #2b3e50; }
 .cm-s-lucario .CodeMirror-guttermarker { color: #599eff; }
