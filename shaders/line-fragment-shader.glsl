@@ -16,9 +16,9 @@ void main()
 {
     if (hairShader)
     {
-        float dotTL = max(0.0, dot(T, L));
+        float dotTL = abs(dot(T, L));
         float sinTL = sqrt(max(0.0, 1.0 - dotTL*dotTL));
-        float dotTE = max(0.0, dot(T, -V));
+        float dotTE = abs(dot(T, -V));
         float sinTE = sqrt(max(0.0, 1.0 - dotTE*dotTE));
         vec4 diffuse = vColor * abs(sinTL);
         vec4 specular = vec4(hairSpecColor, 1) * pow(dotTL*dotTE + sinTL*sinTE, hairShine);
