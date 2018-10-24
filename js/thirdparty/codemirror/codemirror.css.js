@@ -14,6 +14,7 @@ var codemirror_css_rules = `
   direction: ltr;
   opacity: 0.75;
   border-right: 1px solid #ccc;
+  z-index: 0;
 }
 
 .CodeMirror-scroll { max-height: 70vh; }
@@ -167,7 +168,6 @@ div.CodeMirror span.CodeMirror-nonmatchingbracket {color: #a22;}
 
 .CodeMirror {
   position: absolute;
-  z-index: 100;
   overflow: hidden;
   background: black;
   height: auto;

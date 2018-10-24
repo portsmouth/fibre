@@ -10,6 +10,8 @@ background-size: 100%;">
 <script src='./js/thirdparty/codemirror/codemirror.js'></script>
 <script src='./js/thirdparty/codemirror/codemirror.css.js'></script>
 <script src='./js/thirdparty/codemirror/clike.js'></script>
+<script src='./js/thirdparty/Inlet/inlet.js'></script>
+<script src='./js/thirdparty/Inlet/inlet.css.js'></script>
 <script src='./js/thirdparty/three/three.min.js'></script>
 <script src='./js/thirdparty/three/libs/stats.min.js'></script>
 <script src='./js/thirdparty/three/libs/dat.gui.min.js'></script>
@@ -32,14 +34,16 @@ margin: 0px;
 padding: 0px;
 '>
 
+ 
 <div id='gui' style='
 position:absolute;
-z-index:2;
+z-index:-2;
 '></div>
+
 
 <button id='toggle-code-button' style='
 position:absolute;
-z-index:2;
+z-index:1;
 border:none;
 top: 0px;
 margin-left:5px;
@@ -59,15 +63,15 @@ font-size:24px;
 <textarea id="textarea-errors" name="textarea-errors"> 
 </textarea>
 
-
-<div style='position:relative;'>
+<div style='position:relative; pointer-events:none;'>
 
 <canvas id='render-canvas' style='
 position:absolute;
 left: 0; top: 0;
 height: 100%;
 width: 100%;
-z-index:-1;
+z-index:-10;
+pointer-events: none;  
 '></canvas>
 
 <canvas id='text-canvas' style='
@@ -75,7 +79,7 @@ position:relative;
 left: 0; top: 0;
 height: 100%;
 width: 100%;
-z-index:0;
+z-index:-10;
 pointer-events: none;  
 '></canvas>
 
@@ -84,6 +88,9 @@ pointer-events: none;
 
 
 <script type="text/javascript">
+
+var editor;
+var error_editor;
 
 function onLoad() 
 { 
@@ -96,7 +103,7 @@ function onLoad()
     document.getElementsByTagName('head')[0].appendChild(styleElement);
 
     let code_textarea = document.getElementById("textarea-code");
-    let editor = CodeMirror(function(elt) {
+    editor = CodeMirror(function(elt) {
         code_textarea.parentNode.replaceChild(elt, code_textarea);
     }, {
         lineNumbers: true,
@@ -106,7 +113,7 @@ function onLoad()
     editor.setOption("theme", 'lucario');
 
     let error_textarea = document.getElementById("textarea-errors");
-    let error_editor = CodeMirror(function(elt) {
+    error_editor = CodeMirror(function(elt) {
         error_textarea.parentNode.replaceChild(elt, error_textarea);
     }, {
         lineNumbers: false,
@@ -116,7 +123,9 @@ function onLoad()
         readOnly: true
     });
     error_editor.setOption("theme", 'monokai');
-    error_editor.setValue('test');
+    error_editor.setValue('');
+    $(error_editor.getWrapperElement()).hide();
+
 
     let lorenz = `
 ///////////////////////////////////////////s
@@ -196,27 +205,48 @@ vec3 color(vec3 p, float t)
     }  
     `;
 
-    this.code = lorenz;
+    let code = lorenz;
 
-    editor.setValue(this.code);
+    editor.setValue(code);
+
+    Inlet(editor, {container: document.getElementById("container"),
+                   fixedContainer: true  
+                  });
 
     fibre = new Fibre(editor, error_editor); 
 
     var cmEl = document.querySelector('.CodeMirror');
-
-    cmEl.addEventListener('mouseleave', function(e) {
-        console.log('mouseleave');
-        if (!fibre.cornerDragging && !fibre.centerDragging)
-            fibre.camControls.enabled = true;
-    });
-
+    var edRect = cmEl.getBoundingClientRect();
     cmEl.addEventListener('mouseenter', function(e) {
-        console.log('mouseenter');
         fibre.camControls.enabled = false;
     });
 
+    cmEl.addEventListener('mousemove', function(e) {
+        if (e.clientX >= edRect.left && e.clientX <= edRect.right &&
+            e.clientY >= edRect.top  && e.clientY <= edRect.bottom) 
+        {
+            fibre.camControls.enabled = false;
+            return;
+        }
+        fibre.camControls.enabled = true;
+    });
+
+    cmEl.addEventListener('mouseleave', function(e) {
+        if (e.clientX >= edRect.left && e.clientX <= edRect.right &&
+            e.clientY >= edRect.top  && e.clientY <= edRect.bottom) 
+        {
+            fibre.camControls.enabled = false;
+            return;
+        }
+        fibre.camControls.enabled = true;
+    });
+
+
+
     animateLoop(); 
 }
+
+
 
 function animateLoop() 
 { 
@@ -230,9 +260,7 @@ $(document).ready(function()
     $('#div-code').hide();
 
     $("#toggle-code-button").click(function(){
-
-        $('.CodeMirror').fadeToggle(1000);
-        console.log('helo');
+        $(editor.getWrapperElement()).fadeToggle(1000);
     });
 });
 

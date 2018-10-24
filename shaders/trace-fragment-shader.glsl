@@ -33,7 +33,7 @@ USER_CODE
 bool boxHit( in vec3 rayPos, in vec3 rayDir, in vec3 bbMin, in vec3 bbMax,
              inout float t0, inout float t1 )
 {
-    vec3 dL = vec3(1.0f/rayDir.x, 1.0f/rayDir.y, 1.0f/rayDir.z);
+    vec3 dL = 1.0/rayDir;
     vec3 lo = (bbMin - rayPos) * dL;
     vec3 hi = (bbMax - rayPos) * dL;
     sort2(lo, hi);

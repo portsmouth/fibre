@@ -581,6 +581,20 @@ Fibre.prototype.onClick = function(event)
 
 Fibre.prototype.onDocumentMouseMove = function(event)
 {
+    // check not within editor region
+    var cmEl = document.querySelector('.CodeMirror');
+    var edRect = cmEl.getBoundingClientRect();
+    if (event.clientX >= edRect.left && event.clientX <= edRect.right &&
+        event.clientY >= edRect.top  && event.clientY <= edRect.bottom) 
+    {
+        console.log('disabling');
+        this.camControls.enabled = false;
+        return;
+    }
+
+    if (!this.cornerDragging && !this.centerDragging)
+        this.camControls.enabled = true;
+
     let u = event.clientX/window.innerWidth;
     let v = event.clientY/window.innerHeight;
 
@@ -707,11 +721,13 @@ Fibre.prototype.onDocumentMouseMove = function(event)
     }
 
     this.camControls.update();
-    event.preventDefault();
+    //event.preventDefault();
 }
 
 Fibre.prototype.onDocumentMouseDown = function(event)
 {
+    if (!this.camControls.enabled) return;
+
     let boundsHit = this.boundsHit;
     if (boundsHit && boundsHit.hit)
     {
