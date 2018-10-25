@@ -58,8 +58,8 @@ GUI.prototype.createRaytracerSettings = function()
     this.rendererFolder.add(raytracer, 'maxTimeSteps', 4, 4096).onChange( function(value) { raytracer.maxTimeSteps = Math.floor(value); raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'raySize', 4, 1024).onChange( function(value) { raytracer.raySize = Math.floor(value); raytracer.initStates(); raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'integrationTime', 0.1, 1000.0).onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer, 'gridSpace', 0.0, 10.0).onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer, 'tubeWidth', 0.0, 1.0).onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'gridSpace', 0.0, 1.0).onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'tubeWidth', 0.0, 0.01).onChange( function(value) { raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'tubeSpread').onChange( function(value) { raytracer.reset(true); } );
 
     this.rendererFolder.add(raytracer, 'exposure', -10.0, 10.0);
@@ -98,6 +98,7 @@ GUI.prototype.createRaytracerSettings = function()
 
     this.rendererFolder.add(raytracer, 'depthTest').onChange( function(value) { raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'clipToBounds').onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'showBounds').onChange( function(value) { raytracer.reset(true); } );
     
     this.rendererFolder.close();
 }

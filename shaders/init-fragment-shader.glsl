@@ -47,6 +47,7 @@ void main()
 {
     vec4 seed = texture(RngData, vTexCoord);
     vec3 boundsExtent = boundsMax - boundsMin;
+    float scale = max(max(boundsExtent.x, boundsExtent.y), boundsExtent.z);
     vec3 X = boundsMin;
     vec3 offset = vec3(0.0);
 
@@ -60,23 +61,16 @@ void main()
         X = vec3(gridSpace*floor(X.x/gridSpace),
                  gridSpace*floor(X.y/gridSpace),
                  gridSpace*floor(X.z/gridSpace));
-
         X = min(X, boundsMax);
         X = max(X, boundsMin);
-        /*
-        vec3 g = gridSpace / boundsExtent;
-        X += vec3(g.x*floor(rand(seed)/g.x), 
-                  g.y*floor(rand(seed)/g.y), 
-                  g.z*floor(rand(seed)/g.z)) * boundsExtent;
-        */
+
         float Ct    = 2.0*rand(seed)-1.0;
         float theta = acos(Ct);
         float St    = sin(theta);
         float phi   = rand(seed)*2.0*M_PI;
         float Sp = sin(phi);
         float Cp = cos(phi);
-        
-        vec3 dX = tubeWidth * gridSpace * vec3(St*Cp, St*Sp, Ct);
+        vec3 dX = tubeWidth * vec3(St*Cp, St*Sp, Ct);
         if (tubeSpread)
         {
             X += dX;

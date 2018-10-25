@@ -74,8 +74,8 @@ var Raytracer = function()
 
     this.maxTimeSteps = 128;
     this.integrationTime = 10.0;
-    this.gridSpace = 0.5;
-    this.tubeWidth = 0.01;
+    this.gridSpace = 0.1;
+    this.tubeWidth = 0.001;
     this.tubeSpread = false;
     this.exposure = 10.0;
     this.gamma = 2.2;
@@ -84,6 +84,7 @@ var Raytracer = function()
     this.hairSpecColor = [1.0, 1.0, 1.0];
     this.depthTest = false;
     this.clipToBounds = true;
+    this.showBounds = true;
 
     this.xmin = 0.0001;
     this.xmax = 0.0001;
@@ -207,8 +208,7 @@ Raytracer.prototype.createBoxCornerVbos = function()
     let o = [boundsMin.x, boundsMin.y, boundsMin.z];
     let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
     let s = 0.666;
-
-    let outerR = 0.2 * Math.max(e[0], e[1], e[2]);
+    let outerR = 0.1 * Math.max(e[0], e[1], e[2]);
 
     this.cornerVbos = [];
     for (c=0; c<8; ++c)
@@ -459,8 +459,11 @@ Raytracer.prototype.render = function()
         this.initProgram.uniformTexture("RngData", this.rayStates[current].rngTex);
         this.initProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
         this.initProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
-        this.initProgram.uniformF("gridSpace", this.gridSpace);
-        this.initProgram.uniformF("tubeWidth", this.tubeWidth);
+        let scale = Math.max(boundsMax.x-boundsMin.x,
+                             boundsMax.y-boundsMin.y,
+                             boundsMax.z-boundsMin.z);
+        this.initProgram.uniformF("gridSpace", scale*this.gridSpace);
+        this.initProgram.uniformF("tubeWidth", scale*this.tubeWidth);
         this.initProgram.uniformI("tubeSpread", this.tubeSpread);
 
         this.quadVbo.draw(this.initProgram, gl.TRIANGLE_FAN);
@@ -591,12 +594,8 @@ Raytracer.prototype.render = function()
         gl.enable(gl.BLEND);
         gl.disable(gl.DEPTH_TEST);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
         this.boxProgram.bind();
-        let boundsHit = fibre.boundsHit;
-        if (boundsHit && boundsHit.hit && boundsHit.type == 'center')
-            this.boxProgram.uniform4Fv("color", [1.0, 0.9, 0.9, 0.5]);
-        else
-            this.boxProgram.uniform4Fv("color", [1.0, 1.0, 1.0, 0.2]);
         
         // Setup projection matrix
         var projectionMatrixLocation = this.boxProgram.getUniformLocation("u_projectionMatrix");
@@ -606,14 +605,23 @@ Raytracer.prototype.render = function()
         var modelViewMatrixLocation = this.boxProgram.getUniformLocation("u_modelViewMatrix");
         gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
 
-        if (!this.boxVbo)
+        let boundsHit = fibre.boundsHit;
+        if (boundsHit && boundsHit.hit && boundsHit.type == 'center')
+            this.boxProgram.uniform4Fv("color", [1.0, 0.9, 0.9, 0.5]);
+        else
+            this.boxProgram.uniform4Fv("color", [1.0, 1.0, 1.0, 0.2]);
+
+        if ((boundsHit && boundsHit.hit) || this.showBounds)
         {
-            let o = [boundsMin.x, boundsMin.y, boundsMin.z];
-            let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
-            this.createBoxVbo(o, e)
+            if (!this.boxVbo)
+            {
+                let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+                let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+                this.createBoxVbo(o, e)
+            }
+            this.boxVbo.bind();
+            this.boxVbo.draw(this.boxProgram, gl.LINES);
         }
-        this.boxVbo.bind();
-        this.boxVbo.draw(this.boxProgram, gl.LINES);
 
         // Draw corner highlights if mouse-over is active
         if (boundsHit && boundsHit.hit)
