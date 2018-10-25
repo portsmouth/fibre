@@ -407,7 +407,7 @@ Fibre.prototype.boundsRaycast = function(u, v)
 
     // raycast corner cylinder manipulators
     let cornerR = 0.05 * Math.max(e[0], e[1], e[2]);
-    let outerR = 0.2 * Math.max(e[0], e[1], e[2]);
+    let outerR = 0.1 * Math.max(e[0], e[1], e[2]);
     for (i = 0; i<corners.length; i++)
     {
         let c = corners[i];
