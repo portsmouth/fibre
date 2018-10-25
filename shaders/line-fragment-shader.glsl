@@ -21,7 +21,7 @@ void main()
         float dotTE = dot(T, -V);
         float sinTE = sqrt(max(0.0, 1.0 - dotTE*dotTE));
         vec4 diffuse = vColor * sinTL;
-        vec4 specular = vec4(hairSpecColor, 1) * pow(-dotTL*dotTE + sinTL*sinTE, hairShine);
+        vec4 specular = vec4(hairSpecColor, 1) * pow(abs(-dotTL*dotTE + sinTL*sinTE), hairShine);
         outputColor = diffuse + specular;
     }
     else
