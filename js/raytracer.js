@@ -1,5 +1,4 @@
 
-
 var RayState = function(size)
 {
     var posData   = new Float32Array(size*size*4); // ray position
@@ -66,6 +65,7 @@ var Raytracer = function()
     this.enabled = true;
     this.pathLength = 0;
     this.initStates();
+    this.time_ms = 0.0;
 
     this.waveBuffer = null;
     this.offsetTex = null;
@@ -77,7 +77,7 @@ var Raytracer = function()
     this.gridSpace = 0.1;
     this.tubeWidth = 0.001;
     this.tubeSpread = false;
-    this.exposure = 10.0;
+    this.exposure = -1.0;
     this.gamma = 2.2;
     this.hairShader = true;
     this.hairShine = 10.0;
@@ -85,6 +85,10 @@ var Raytracer = function()
     this.depthTest = false;
     this.clipToBounds = true;
     this.showBounds = true;
+
+    this.dash_spacing = 0.05;
+    this.dash_speed = 1.0;
+    this.dashes = false;
 
     this.xmin = 0.0001;
     this.xmax = 0.0001;
@@ -178,8 +182,6 @@ Raytracer.prototype.createBoxVbo = function(origin, extents)
     this.boxVbo = vbo;
 }
 
-
-
 Raytracer.prototype.deleteBoxCornerVbos = function()
 {
     if (this.cornerVbos)
@@ -244,7 +246,6 @@ Raytracer.prototype.createBoxCornerVbos = function()
     }
 }
 
-
 Raytracer.prototype.resetBounds = function()
 {
     this.deleteBoxVbo();
@@ -259,7 +260,6 @@ Raytracer.prototype.resetBounds = function()
     this.ymax = boundsMax.y;
     this.zmax = boundsMax.z;
 }
-
 
 Raytracer.prototype.reset = function(no_recompile)
 {
@@ -329,7 +329,6 @@ Raytracer.prototype.compileShaders = function()
     fibre.disable_errors();
 }
 
-
 Raytracer.prototype.initStates = function()
 {
     this.raySize = Math.floor(this.raySize);
@@ -361,7 +360,6 @@ Raytracer.prototype.initStates = function()
     }
 }
 
-
 Raytracer.prototype.getStats = function()
 {
     stats = {};
@@ -379,12 +377,24 @@ Raytracer.prototype.composite = function()
     this.compProgram.bind();
     this.quadVbo.bind();
 
+    let bounds = fibre.getBounds();
+    boundsMin = bounds.min;
+    boundsMax = bounds.max;
+    let scale = Math.max(boundsMax.x-boundsMin.x,
+                         boundsMax.y-boundsMin.y,
+                         boundsMax.z-boundsMin.z);
+
     // Normalize the emission by dividing by the total number of paths
     // (and also apply gamma correction)
-    let Nrays = Math.max(this.raysTraced, 1);
-    this.compProgram.uniformF("invNumRays", this.depthTest ? 10.0/Nrays : 1.0/Nrays);
+    let Npasses = Math.max(this.wavesTraced, 1);
+    this.compProgram.uniformF("invNpasses", this.depthTest ? 10.0/Npasses : 1.0/Npasses);
     this.compProgram.uniformF("exposure", this.exposure);
     this.compProgram.uniformF("invGamma", 1.0/this.gamma);
+    this.compProgram.uniformF("time", this.time_ms/1.0e3);
+
+    this.compProgram.uniformI("dashes", this.dashes);
+    this.compProgram.uniformF("dash_spacing", scale*this.dash_spacing);
+    this.compProgram.uniformF("dash_speed", this.dash_speed);
 
     gl.enable(gl.BLEND);
     gl.blendEquation(gl.FUNC_ADD);
@@ -423,6 +433,9 @@ Raytracer.prototype.render = function()
     let bounds = fibre.getBounds();
     boundsMin = bounds.min;
     boundsMax = bounds.max;
+    let scale = Math.max(boundsMax.x-boundsMin.x,
+                         boundsMax.y-boundsMin.y,
+                         boundsMax.z-boundsMin.z);
     
     // Clear wavebuffer
     if (this.traceProgram)
@@ -459,9 +472,6 @@ Raytracer.prototype.render = function()
         this.initProgram.uniformTexture("RngData", this.rayStates[current].rngTex);
         this.initProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
         this.initProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
-        let scale = Math.max(boundsMax.x-boundsMin.x,
-                             boundsMax.y-boundsMin.y,
-                             boundsMax.z-boundsMin.z);
         this.initProgram.uniformF("gridSpace", scale*this.gridSpace);
         this.initProgram.uniformF("tubeWidth", scale*this.tubeWidth);
         this.initProgram.uniformI("tubeSpread", this.tubeSpread);
@@ -486,12 +496,12 @@ Raytracer.prototype.render = function()
     // Prepare line drawing program
     {
         this.lineProgram.bind();
+        this.lineProgram.uniform3Fv("V", [camDir.x, camDir.y, camDir.z]);
         this.lineProgram.uniformI("hairShader", this.hairShader);
         this.lineProgram.uniformF("hairShine", this.hairShine);
         this.lineProgram.uniform3Fv("hairSpecColor", this.hairSpecColor);
-        this.lineProgram.uniform3Fv("V", [camDir.x, camDir.y, camDir.z]);
-        this.lineProgram.uniformI("tubeSpread", this.tubeSpread);
-
+ 
+       
         // Setup projection matrix
         var projectionMatrixLocation = this.lineProgram.getUniformLocation("u_projectionMatrix");
         gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
@@ -529,7 +539,6 @@ Raytracer.prototype.render = function()
             // Read this data to draw the next 'wavefront' of rays (i.e. line segments) into the wave buffer
             {
                 this.img_fbo.bind();
-                
                 gl.viewport(0, 0, this.width, this.height);
 
                 if (this.depthTest)

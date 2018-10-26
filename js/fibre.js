@@ -273,12 +273,8 @@ Fibre.prototype.compile_error = function(shaderName, shaderTypeStr, error_log)
     errStr = '';
     prefix = '';
     if (shaderName != 'trace')
-        prefix = "[" + shaderName + " shader]";
+        prefix = "[" + shaderName + " " + shaderTypeStr + " shader]";
 
-    console.log("Compile error: ");
-    console.log("\t\tshaderName: ", shaderName);
-    console.log("\t\tshaderTypeStr: ", shaderTypeStr);
-    console.log("\t\terror_log: \n", error_log);
     const errorRE = /\d+:(\d+):/;
     error_log.split('\n').forEach( function(error, ndx) {
         const m = errorRE.exec(error);
@@ -286,11 +282,9 @@ Fibre.prototype.compile_error = function(shaderName, shaderTypeStr, error_log)
         {
             const traceShaderLineStart = 20;
             let lineNum = Math.max(m ? parseInt(m[1]) : 0, 0) - traceShaderLineStart;
-            console.log(lineNum);
             error = error.replace(errorRE, "");
             error = error.replace('ERROR:', "");
             error = error.trim();
-
             if (error)
                 errStr += prefix + '\t→ Error on line ' + lineNum + ': ' + error + '\n';
         }
@@ -587,7 +581,6 @@ Fibre.prototype.onDocumentMouseMove = function(event)
     if (event.clientX >= edRect.left && event.clientX <= edRect.right &&
         event.clientY >= edRect.top  && event.clientY <= edRect.bottom) 
     {
-        console.log('disabling');
         this.camControls.enabled = false;
         return;
     }

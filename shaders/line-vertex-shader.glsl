@@ -7,12 +7,13 @@ uniform sampler2D RgbDataB;
 uniform sampler2D OffsetData;
 uniform mat4 u_projectionMatrix;
 uniform mat4 u_modelViewMatrix;
-
 uniform bool tubeSpread;
 
 in vec3 TexCoord;
-out vec4 vColor;
-out vec3 T;
+
+out vec4 vColor;  // user color
+out vec3 T;       // tangent
+out float t;      // integration parameter 
 
 void main()
 {
@@ -33,6 +34,7 @@ void main()
 
     gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(pos.xyz, 1.0);
     vColor = mix(colorA, colorB, TexCoord.z);
+    t = mix(posA.w, posB.w, TexCoord.z);
     T = normalize(posB.xyz - posA.xyz);
 }
 

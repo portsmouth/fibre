@@ -1,7 +1,9 @@
 precision highp float;
 
-in vec4 vColor;
-in vec3 T;
+in vec4 vColor; // user color
+in vec3 T;      // tangent
+in float t;     // integration parameter 
+
 uniform vec3 V;
 uniform bool hairShader;
 uniform float hairShine;
@@ -16,6 +18,7 @@ void main()
 {
     if (hairShader)
     {
+        // Kajiya-Kay hair shader
         float dotTL = dot(T, L);
         float sinTL = sqrt(max(0.0, 1.0 - dotTL*dotTL));
         float dotTE = dot(T, -V);
@@ -28,4 +31,6 @@ void main()
     {
         outputColor = vColor;
     }
+
+    outputColor.w = t;
 }

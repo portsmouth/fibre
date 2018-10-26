@@ -55,16 +55,16 @@ GUI.prototype.createRaytracerSettings = function()
     this.raytracerSettings = {};
     var raytracer = fibre.getRaytracer();
 
+    let ME = this;
+
     this.rendererFolder.add(raytracer, 'maxTimeSteps', 4, 4096).onChange( function(value) { raytracer.maxTimeSteps = Math.floor(value); raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'raySize', 4, 1024).onChange( function(value) { raytracer.raySize = Math.floor(value); raytracer.initStates(); raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'integrationTime', 0.1, 1000.0).onChange( function(value) { raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'gridSpace', 0.0, 1.0).onChange( function(value) { raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'tubeWidth', 0.0, 0.01).onChange( function(value) { raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'tubeSpread').onChange( function(value) { raytracer.reset(true); } );
-
     this.rendererFolder.add(raytracer, 'exposure', -10.0, 10.0);
     this.rendererFolder.add(raytracer, 'gamma', 0.0, 3.0);
-
     this.rendererFolder.add(raytracer, 'hairShader').onChange( function(value) { raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'hairShine', 0.0, 100.0).onChange( function(value) { raytracer.reset(true); } );
     
@@ -100,6 +100,11 @@ GUI.prototype.createRaytracerSettings = function()
     this.rendererFolder.add(raytracer, 'clipToBounds').onChange( function(value) { raytracer.reset(true); } );
     this.rendererFolder.add(raytracer, 'showBounds').onChange( function(value) { raytracer.reset(true); } );
     
+    this.rendererFolder.add(raytracer, 'dashes').onChange( function(value) { if (value) raytracer.depthTest = true; ME.sync(); raytracer.reset(true); } );
+    this.rendererFolder.add(raytracer, 'dash_spacing', 0.0, 1.0);
+    this.rendererFolder.add(raytracer, 'dash_speed', 0.0, 100.0);
+
+
     this.rendererFolder.close();
 }
 
