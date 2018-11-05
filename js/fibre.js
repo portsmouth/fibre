@@ -64,14 +64,12 @@ var Fibre = function(editor, error_editor)
     this.raytracer = new Raytracer();
     this.auto_resize = true;
 
+    // Field presets
+    this.presets = new Presets();
+    this.preset_selection = 'None';
+
     // Create dat gui
     this.gui = new GUI(this.guiVisible);
-
-    // Initialize field
-    this.initField()
-        
-    // Do initial resize:
-    this.resize();
 
     // Setup codemirror events:
     let raytracer = this.raytracer;
@@ -80,6 +78,7 @@ var Fibre = function(editor, error_editor)
         ME.code = cm.getValue();
         ME.reset();
     });
+    this.editing = false;
 
     // Setup keypress and mouse events
     window.addEventListener( 'mousemove', this, false );
@@ -93,6 +92,19 @@ var Fibre = function(editor, error_editor)
     this.boundsHit = null;
     this.cornerDragging = null;
     this.centerDragging = null;
+
+    // GIF recording init
+    this.GIF = null;
+    this.gif_rendering = false;
+
+    // Attempt to load from current URL
+    if (!this.load_url(window.location.href))
+    {
+        this.presets.load_preset('lorenz');
+    }
+    
+    // Do initial resize:
+    this.resize();
 
     this.initialized = true;
 }
@@ -181,12 +193,12 @@ Fibre.prototype.getBounds = function()
     return this.bounds;
 }
 
-Fibre.prototype.set_xmin = function(val) { if (val == this.bounds.min.getComponent(0)) return; this.bounds.min.setComponent(0, val); this.raytracer.resetBounds(); }
-Fibre.prototype.set_ymin = function(val) { if (val == this.bounds.min.getComponent(1)) return; this.bounds.min.setComponent(1, val); this.raytracer.resetBounds(); }
-Fibre.prototype.set_zmin = function(val) { if (val == this.bounds.min.getComponent(2)) return; this.bounds.min.setComponent(2, val); this.raytracer.resetBounds(); }
-Fibre.prototype.set_xmax = function(val) { if (val == this.bounds.max.getComponent(0)) return; this.bounds.max.setComponent(0, val); this.raytracer.resetBounds(); }
-Fibre.prototype.set_ymax = function(val) { if (val == this.bounds.max.getComponent(1)) return; this.bounds.max.setComponent(1, val); this.raytracer.resetBounds(); }
-Fibre.prototype.set_zmax = function(val) { if (val == this.bounds.max.getComponent(2)) return; this.bounds.max.setComponent(2, val); this.raytracer.resetBounds(); }
+Fibre.prototype.set_xmin = function(val) { if (val == this.bounds.min.getComponent(0)) return; this.bounds.min.setComponent(0, val); this.raytracer.resetBounds(); this.reset(); }
+Fibre.prototype.set_ymin = function(val) { if (val == this.bounds.min.getComponent(1)) return; this.bounds.min.setComponent(1, val); this.raytracer.resetBounds(); this.reset(); }
+Fibre.prototype.set_zmin = function(val) { if (val == this.bounds.min.getComponent(2)) return; this.bounds.min.setComponent(2, val); this.raytracer.resetBounds(); this.reset(); }
+Fibre.prototype.set_xmax = function(val) { if (val == this.bounds.max.getComponent(0)) return; this.bounds.max.setComponent(0, val); this.raytracer.resetBounds(); this.reset(); }
+Fibre.prototype.set_ymax = function(val) { if (val == this.bounds.max.getComponent(1)) return; this.bounds.max.setComponent(1, val); this.raytracer.resetBounds(); this.reset(); }
+Fibre.prototype.set_zmax = function(val) { if (val == this.bounds.max.getComponent(2)) return; this.bounds.max.setComponent(2, val); this.raytracer.resetBounds(); this.reset(); }
 
 Fibre.prototype.get_xmin = function() { return this.bounds.min.getComponent(0); }
 Fibre.prototype.get_ymin = function() { return this.bounds.min.getComponent(1); }
@@ -195,59 +207,125 @@ Fibre.prototype.get_xmax = function() { return this.bounds.max.getComponent(0); 
 Fibre.prototype.get_ymax = function() { return this.bounds.max.getComponent(1); }
 Fibre.prototype.get_zmax = function() { return this.bounds.max.getComponent(2); }
 
-Fibre.prototype.getGlsl= function()
+Fibre.prototype.getGlsl = function()
 {
     return this.code;
 }
 
-Fibre.prototype.initField = function()
-{
-    // bounds will be specified by text fields and in URL, and also via some in-viewport UI
-    this.bounds = new THREE.Box3(new THREE.Vector3(-2, -2, -2), new THREE.Vector3(2, 2, 2));
-    size = new THREE.Vector3();
-    this.bounds.size(size);
-    let lengthScale = size.length();
-
-    this.minScale = 1.0e-3 * lengthScale;
-    this.maxScale = 1.0e3 * lengthScale;
-    this.minScale = Math.max(1.0e-6, this.minScale);
-    this.maxScale = Math.min(1.0e20, this.maxScale);
-
-    // Set initial default camera position and target based on max scale
-    let po = 1.5*lengthScale; 
-    this.camera.position.set(po, po, po);
-    this.camControls.target.set(0.0, 0.0, 0.0);
-
-    // cache initial camera position to allow reset on 'F'
-    this.initial_camera_position = new THREE.Vector3();
-    this.initial_camera_position.copy(this.camera.position);
-    this.initial_camera_target = new THREE.Vector3();
-    this.initial_camera_target.copy(this.camControls.target);
-
-    this.sceneName = ''
-    this.sceneURL = ''
-
-    // Initialize code (@todo: take from URL)
-    this.code = this.editor.getValue();
-
-    // Compile GLSL shaders
-    this.raytracer.compileShaders();
-    this.raytracer.resetBounds();
-    this.gui.sync();
-
-    // Fix renderer to width & height, if they were specified
-    if ((typeof this.raytracer.width!=="undefined") && (typeof this.raytracer.height!=="undefined"))
-    {
-        this.auto_resize = false;
-        this._resize(this.raytracer.width, this.raytracer.height);
+Fibre.prototype.getQueryParam = function(url, key) {
+  var queryStartPos = url.indexOf('?');
+  if (queryStartPos === -1) {
+    return null;
+  }
+  var params = url.substring(queryStartPos + 1).split('&');
+  for (var i = 0; i < params.length; i++) {
+    var pairs = params[i].split('=');
+    if (decodeURIComponent(pairs.shift()) == key) {
+      return decodeURIComponent(pairs.join('='));
     }
-
-    // Camera setup
-    this.camera.near = this.minScale;
-    this.camera.far  = this.maxScale;
-    this.camControls.update();
-    this.reset(false);
+  }
 }
+
+Fibre.prototype.get_escaped_stringified_state = function(state)
+{
+    let json_str = JSON.stringify(state);
+    var json_str_escaped = json_str.replace(/[\\]/g, '\\\\')
+                                    .replace(/[\b]/g, '\\b')
+                                    .replace(/[\f]/g, '\\f')
+                                    .replace(/[\n]/g, '\\n')
+                                    .replace(/[\r]/g, '\\r')
+                                    .replace(/[\t]/g, '\\t');
+    return json_str_escaped;
+}
+
+Fibre.prototype.get_stringified_state = function(state)
+{
+    let json_str = JSON.stringify(state);
+    return json_str;
+}
+
+Fibre.prototype.get_url = function()
+{
+    let state = this.get_state();
+    let objJsonStr = this.get_stringified_state(state);
+    let objJsonB64 = btoa(objJsonStr);
+
+    let URL = window.location.href;
+    var separator_index = URL.indexOf('?');
+    if (separator_index > -1)
+    {
+        URL = URL.substring(0, separator_index);
+    }
+    URL += '?settings=' + encodeURIComponent(objJsonB64);
+    history.pushState(null, '', URL);
+    return URL;
+}
+
+Fibre.prototype.get_state = function()
+{
+    let camPos = this.camera.position;
+    let camTar = this.camControls.target;
+    let camera_settings = { pos: [camPos.x, camPos.y, camPos.z],
+                            tar: [camTar.x, camTar.y, camTar.z],
+                            near: this.camera.near,
+                            far:  this.camera.far
+    };
+    let editor_settings = { code: this.code } ;
+    let gui_settings = { visible: this.guiVisible };
+    let state = { R: this.raytracer.settings,
+                  C: camera_settings,
+                  E: editor_settings };
+
+    return state;
+}
+
+
+Fibre.prototype.load_url = function(url)
+{
+    let URL = url;
+    let objJsonB64 = this.getQueryParam(URL, 'settings');
+    if (!objJsonB64) return false;
+
+    let setting_str = atob(objJsonB64);
+    if (!setting_str) return false;
+    let state = JSON.parse(setting_str);
+
+    this.load_state(state);
+    return true;
+}
+
+
+Fibre.prototype.load_state = function(state)
+{
+    let xmin = state.R.xmin;
+    let ymin = state.R.ymin;
+    let zmin = state.R.zmin;
+    let xmax = state.R.xmax;
+    let ymax = state.R.ymax;
+    let zmax = state.R.zmax;
+
+    this.bounds = new THREE.Box3(new THREE.Vector3(xmin, ymin, zmin), new THREE.Vector3(xmax, ymax, zmax));
+
+    let camera_settings = state.C;
+    let P = camera_settings.pos;
+    let T = camera_settings.tar;
+    let near = camera_settings.near;
+    let far = camera_settings.far;
+    this.camera.position.copy(new THREE.Vector3(P[0], P[1], P[2]));
+    this.camera.near = near;
+    this.camera.far = far;
+    this.camControls.target.copy(new THREE.Vector3(T[0], T[1], T[2]));
+    this.camControls.saveState();
+    
+    this.editor.setValue(state.E.code);
+
+    this.raytracer.settings = state.R;
+    
+    this.camControls.update();
+    this.gui.refresh();
+    this.reset();
+}
+
 
 Fibre.prototype.link_error = function(program_info, error_log)
 {
@@ -255,7 +333,6 @@ Fibre.prototype.link_error = function(program_info, error_log)
     console.log("\t\tprogram_info: ", program_info);
     console.log("\t\terror_log: ", error_log);
 }
-
 
 
 Fibre.prototype.disable_errors = function()
@@ -402,14 +479,15 @@ Fibre.prototype.boundsRaycast = function(u, v)
     // raycast corner cylinder manipulators
     let cornerR = 0.05 * Math.max(e[0], e[1], e[2]);
     let outerR = 0.1 * Math.max(e[0], e[1], e[2]);
+    let innerR = 0.49;
     for (i = 0; i<corners.length; i++)
     {
         let c = corners[i];
         let C = new THREE.Vector3(c[0], c[1], c[2]);
         for (axis = 0; axis<3; ++axis)
         {
-            let L  = e[axis] * 0.4;
-            let Lo = e[axis] * 0.4;
+            let L  = e[axis] * innerR;
+            let Lo = e[axis] * innerR;
             let aa = [0, 0, 0];
             let ab = [0, 0, 0];
 
@@ -447,16 +525,11 @@ Fibre.prototype.boundsRaycast = function(u, v)
 // Render all
 Fibre.prototype.render = function()
 {
-    var gl = GLU.gl;
-    gl.viewport(0, 0, this.width, this.height);
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.depthMask(true);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    //gl.enable(gl.DEPTH_TEST);
-
     if (!this.initialized || this.terminated) return;
     this.rendering = true;
-    this.raytracer.render();
+
+    if (!this.gif_rendering)
+        this.raytracer.render();
 
     // Update HUD text canvas
     if (this.textCtx)
@@ -477,23 +550,22 @@ Fibre.prototype.render = function()
             this.textCtx.strokeText('Fibre v'+ver[0]+'.'+ver[1]+'.'+ver[2], this.textCtx.canvas.width - linkWidth - 14, this.textCtx.canvas.height-20);
             this.textCtx.fillText('Fibre v'+ver[0]+'.'+ver[1]+'.'+ver[2], this.textCtx.canvas.width - linkWidth - 14, this.textCtx.canvas.height-20);
             
-            if (this.sceneName != '')
             {
                 this.textCtx.fillStyle = "#ffaa22";
-                this.textCtx.strokeText(this.sceneName, 14, this.textCtx.canvas.height-25);
-                this.textCtx.fillText(this.sceneName, 14, this.textCtx.canvas.height-25);
-            }
-            if (this.sceneURL != '')
-            {
-                if (this.onUserLink) this.textCtx.fillStyle = "#aaccff";
-                else                 this.textCtx.fillStyle = "#55aaff";
-                this.textCtx.strokeText(this.sceneURL, 14, this.textCtx.canvas.height-40);
-                this.textCtx.fillText(this.sceneURL, 14, this.textCtx.canvas.height-40);
+                if (!this.gif_rendering)
+                {
+                    this.textCtx.strokeText(this.raytracer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
+                    this.textCtx.fillText(this.raytracer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
+                }
+                else
+                {
+                    this.textCtx.strokeText('rendering GIF ...', 14, this.textCtx.canvas.height-25);
+                    this.textCtx.fillText('rendering GIF ...', 14, this.textCtx.canvas.height-25);
+                }   
             }
         }
     }
 
-    gl.finish();
     this.rendering = false;
 }
 
@@ -573,14 +645,116 @@ Fibre.prototype.onClick = function(event)
     event.preventDefault();
 }
 
+Fibre.prototype.move_corner = function(u, v)
+{
+    // get dragged corner current position
+    let corner_index = this.cornerDragging.corner_index;
+    let axis = this.cornerDragging.axis_index;
+
+    let bounds = this.getBounds();
+    boundsMin = bounds.min;
+    boundsMax = bounds.max;
+    let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+    let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+    let x =     corner_index &1;
+    let y = (corner_index>>1)&1; 
+    let z = (corner_index>>2)&1;
+    let c = new THREE.Vector3(o[0] + x*e[0], o[1] + y*e[1], o[2] + z*e[2]);
+
+    // get camera ray at current mouse location
+    let dir = new THREE.Vector3();
+    dir.set( u*2 - 1,
+            -v*2 + 1,
+                0.5 );
+    dir.unproject(this.camera);
+    dir.sub(this.camera.position).normalize();
+    let ray = {origin:this.camera.position, direction: dir};
+
+    // intersect ray with a plane passing through the current corner, orthog. to ray
+    // to compute the new corner position
+    let oc = ray.origin.clone();
+    oc.sub(c);
+    let t = -oc.dot(ray.direction);
+    let cnew = ray.origin.clone();
+    cnew.addScaledVector(ray.direction, t);
+
+    if      (axis==0) { cnew.y = c.y; cnew.z = c.z; }
+    else if (axis==1) { cnew.x = c.x; cnew.z = c.z; }
+    else if (axis==2) { cnew.x = c.x; cnew.y = c.y; }
+
+    // clip existing corners to the new corner
+    for (c=0; c<8; ++c)
+    { 
+        if (axis==0) {
+            if ((corner_index%2)>0)  boundsMax.x = Math.min(cnew.x, boundsMax.x);
+            else                     boundsMin.x = Math.max(cnew.x, boundsMin.x); }
+        else if (axis==1) {
+            if ((corner_index%4)>=2) boundsMax.y = Math.min(cnew.y, boundsMax.y);
+            else                     boundsMin.y = Math.max(cnew.y, boundsMin.y); }
+        else if (axis==2) {
+            if (corner_index>=4)     boundsMax.z = Math.min(cnew.z, boundsMax.z);
+            else                     boundsMin.z = Math.max(cnew.z, boundsMin.z); }
+    }       
+    this.bounds.max = boundsMax;
+    this.bounds.min = boundsMin;
+    
+    // Expand the bounds to accommodate the new corner
+    this.bounds.expandByPoint(cnew);
+
+    this.raytracer.resetBounds();
+    this.reset(true);
+}
+
+Fibre.prototype.move_center = function(u, v)
+{
+    let bounds = this.getBounds();
+    boundsMin = bounds.min;
+    boundsMax = bounds.max;
+    let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+    let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+    let c = new THREE.Vector3(o[0] + 0.5*e[0], o[1] + 0.5*e[1], o[2] + 0.5*e[2]);
+
+    // get camera ray at current mouse location
+    let dir = new THREE.Vector3();
+    dir.set( u*2 - 1,
+            -v*2 + 1,
+                0.5 );
+    dir.unproject(this.camera);
+    dir.sub(this.camera.position).normalize();
+    let ray = {origin:this.camera.position, direction: dir};
+
+        // intersect ray with a plane passing through the current center, orthog. to ray
+    // to compute the new center position
+    let oc = ray.origin.clone();
+    oc.sub(c);
+    let t = -oc.dot(ray.direction);
+    let cnew = ray.origin.clone();
+    cnew.addScaledVector(ray.direction, t);
+    cnew.sub(c);
+
+    this.bounds.max.add(cnew); 
+    this.bounds.min.add(cnew); 
+
+    this.raytracer.resetBounds();
+    this.reset(true);
+}
+
 Fibre.prototype.onDocumentMouseMove = function(event)
 {
+    let u = event.clientX/window.innerWidth;
+    let v = event.clientY/window.innerHeight;
+
     // check not within editor region
-    var cmEl = document.querySelector('.CodeMirror');
-    var edRect = cmEl.getBoundingClientRect();
-    if (event.clientX >= edRect.left && event.clientX <= edRect.right &&
-        event.clientY >= edRect.top  && event.clientY <= edRect.bottom) 
+    if (fibre.editing) 
     {
+        if      (this.cornerDragging != null) this.move_corner(u, v);
+        else if (this.centerDragging != null) this.move_center(u, v);
+
+        this.cornerDragging = null;
+        this.centerDragging = null;
+        this.camControls.reset();
+        this.camControls.update();
+
         this.camControls.enabled = false;
         return;
     }
@@ -588,102 +762,8 @@ Fibre.prototype.onDocumentMouseMove = function(event)
     if (!this.cornerDragging && !this.centerDragging)
         this.camControls.enabled = true;
 
-    let u = event.clientX/window.innerWidth;
-    let v = event.clientY/window.innerHeight;
-
-    if (this.cornerDragging != null)
-    {        
-        // get dragged corner current position
-        let corner_index = this.cornerDragging.corner_index;
-        let axis = this.cornerDragging.axis_index;
-
-        let bounds = this.getBounds();
-        boundsMin = bounds.min;
-        boundsMax = bounds.max;
-        let o = [boundsMin.x, boundsMin.y, boundsMin.z];
-        let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
-        let x =     corner_index &1;
-        let y = (corner_index>>1)&1; 
-        let z = (corner_index>>2)&1;
-        let c = new THREE.Vector3(o[0] + x*e[0], o[1] + y*e[1], o[2] + z*e[2]);
-
-        // get camera ray at current mouse location
-        let dir = new THREE.Vector3();
-        dir.set( u*2 - 1,
-                -v*2 + 1,
-                 0.5 );
-        dir.unproject(this.camera);
-        dir.sub(this.camera.position).normalize();
-        let ray = {origin:this.camera.position, direction: dir};
-
-        // intersect ray with a plane passing through the current corner, orthog. to ray
-        // to compute the new corner position
-        let oc = ray.origin.clone();
-        oc.sub(c);
-        let t = -oc.dot(ray.direction);
-        let cnew = ray.origin.clone();
-        cnew.addScaledVector(ray.direction, t);
-
-        if      (axis==0) { cnew.y = c.y; cnew.z = c.z; }
-        else if (axis==1) { cnew.x = c.x; cnew.z = c.z; }
-        else if (axis==2) { cnew.x = c.x; cnew.y = c.y; }
-
-        // clip existing corners to the new corner
-        for (c=0; c<8; ++c)
-        { 
-            if (axis==0) {
-                if ((corner_index%2)>0)  boundsMax.x = Math.min(cnew.x, boundsMax.x);
-                else                     boundsMin.x = Math.max(cnew.x, boundsMin.x); }
-            else if (axis==1) {
-                if ((corner_index%4)>=2) boundsMax.y = Math.min(cnew.y, boundsMax.y);
-                else                     boundsMin.y = Math.max(cnew.y, boundsMin.y); }
-            else if (axis==2) {
-                if (corner_index>=4)     boundsMax.z = Math.min(cnew.z, boundsMax.z);
-                else                     boundsMin.z = Math.max(cnew.z, boundsMin.z); }
-        }       
-        this.bounds.max = boundsMax;
-        this.bounds.min = boundsMin;
-      
-        // Expand the bounds to accommodate the new corner
-        this.bounds.expandByPoint(cnew);
-
-        this.raytracer.resetBounds();
-        this.reset(true);
-    }
-
-    else if (this.centerDragging != null)
-    {
-        let bounds = this.getBounds();
-        boundsMin = bounds.min;
-        boundsMax = bounds.max;
-        let o = [boundsMin.x, boundsMin.y, boundsMin.z];
-        let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
-        let c = new THREE.Vector3(o[0] + 0.5*e[0], o[1] + 0.5*e[1], o[2] + 0.5*e[2]);
-
-        // get camera ray at current mouse location
-        let dir = new THREE.Vector3();
-        dir.set( u*2 - 1,
-                -v*2 + 1,
-                 0.5 );
-        dir.unproject(this.camera);
-        dir.sub(this.camera.position).normalize();
-        let ray = {origin:this.camera.position, direction: dir};
-
-         // intersect ray with a plane passing through the current center, orthog. to ray
-        // to compute the new center position
-        let oc = ray.origin.clone();
-        oc.sub(c);
-        let t = -oc.dot(ray.direction);
-        let cnew = ray.origin.clone();
-        cnew.addScaledVector(ray.direction, t);
-        cnew.sub(c);
-
-        this.bounds.max.add(cnew); 
-        this.bounds.min.add(cnew); 
-
-        this.raytracer.resetBounds();
-        this.reset(true);
-    }
+    if      (this.cornerDragging != null) this.move_corner(u, v);
+    else if (this.centerDragging != null) this.move_center(u, v);
 
     // Check for bounds interaction
     else
@@ -714,6 +794,7 @@ Fibre.prototype.onDocumentMouseMove = function(event)
     }
 
     this.camControls.update();
+    this.camControls.saveState();
     //event.preventDefault();
 }
 
@@ -776,7 +857,6 @@ Fibre.prototype.onDocumentRightClick = function(event)
 
 Fibre.prototype.onkeydown = function(event)
 {
-    console.log('Fibre.prototype.onkeydown');
     var charCode = (event.which) ? event.which : event.keyCode;
     switch (charCode)
     {
@@ -788,21 +868,31 @@ Fibre.prototype.onkeydown = function(event)
             break;
 
         case 70: // F key: reset cam  
-            if (!this.camControls.enabled) break;
+            if (!this.camControls.enabled || fibre.editing) break;
             this.camera.position.copy(this.initial_camera_position);
             this.camControls.target.copy(this.initial_camera_target);
+            this.camControls.update();
             this.reset(true);
             break;
 
         case 72: // H key: toggle hide/show dat gui
-            if (!this.camControls.enabled) break;
+            if (!this.camControls.enabled || fibre.editing) break;
             this.guiVisible = !this.guiVisible;
             fibre.getGUI().toggleHide();
             break;
+
+
+        case 79: // O key: dump JSON state to console
+            if (!this.camControls.enabled || fibre.editing) break;
+            let state = this.get_state();
+            let objJsonStr = this.get_escaped_stringified_state(state);
+            console.log(objJsonStr);
+            break;
+
     
         case 87: // W key: cam forward
         {
-            if (!this.camControls.enabled) break;
+            if (!this.camControls.enabled || fibre.editing) break;
             let toTarget = new THREE.Vector3();
             toTarget.copy(this.camControls.target);
             toTarget.sub(this.camera.position);
@@ -819,7 +909,7 @@ Fibre.prototype.onkeydown = function(event)
         
         case 65: // A key: cam left
         {
-            if (!this.camControls.enabled) break;
+            if (!this.camControls.enabled || fibre.editing) break;
             let toTarget = new THREE.Vector3();
             toTarget.copy(this.camControls.target);
             toTarget.sub(this.camera.position);
@@ -837,7 +927,7 @@ Fibre.prototype.onkeydown = function(event)
         
         case 83: // S key: cam back
         {
-            if (!this.camControls.enabled) break;
+            if (!this.camControls.enabled || fibre.editing) break;
             let toTarget = new THREE.Vector3();
             toTarget.copy(this.camControls.target);
             toTarget.sub(this.camera.position);
@@ -854,7 +944,7 @@ Fibre.prototype.onkeydown = function(event)
         
         case 68: // D key: cam right
         {
-            if (!this.camControls.enabled) break;
+            if (!this.camControls.enabled || fibre.editing) break;
             let toTarget = new THREE.Vector3();
             toTarget.copy(this.camControls.target);
             toTarget.sub(this.camera.position);
@@ -880,3 +970,50 @@ function camChanged()
         fibre.reset(no_recompile);
     }
 }
+
+
+Fibre.prototype.toggleRecord = function(command)
+{
+    if (command=='RECORD' || command=='RECORD PERIOD')
+    {
+        var blob = new Blob([gifworker_code]);
+        var blobURL = window.URL.createObjectURL(blob);
+        this.recordingGIF = true;
+        this.GIF = new GIF({
+            workers: 10,
+            workerScript: blobURL,
+            quality: 30,
+            width: this.width,
+            height: this.height
+        });
+
+        let ME = this;
+
+        this.GIF.on('finished', function(blob) {
+                window.open(URL.createObjectURL(blob));
+                ME.gif_rendering = false;
+        });
+
+        this.gif_timer_start_ms = performance.now();
+        this.gif_last_frame_ms = performance.now();
+
+        if (command=='RECORD PERIOD')
+        {
+            this.gif_timer_max_duration = 8.0*Math.PI * 1.0e3/Math.max(1.0e-6, this.raytracer.dash_speed);
+        }
+        else
+        {
+            this.gif_timer_max_duration = 60.0 * 1.0e3;
+        }
+    }
+    else
+    {
+        if (this.GIF)
+        {
+            this.gif_rendering = true;
+            this.GIF.render();
+            this.GIF = null;
+        }
+    }
+}
+

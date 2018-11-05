@@ -45,6 +45,38 @@
             this.floatLinExt = gl.getExtension("OES_texture_float_linear");
             if (!this.floatLinExt) this.fail("Your platform does not support OES_texture_float_linear");
         }
+
+        let ME = this;
+        gl.getImageData = function() {
+            let left = 0;
+            let top = 0;
+            let width = ME.canvas.width;
+            let height = ME.canvas.height;
+            let pixels = new Uint8Array(width * height * 4);
+            gl.readPixels(left, top, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+            // flip
+            var halfHeight = height / 2 | 0;  // the | 0 keeps the result an int
+            var bytesPerRow = width * 4;
+
+            // make a temp buffer to hold one row
+            var temp = new Uint8Array(width * 4);
+            for (var y = 0; y < halfHeight; ++y) {
+                var topOffset = y * bytesPerRow;
+                var bottomOffset = (height - y - 1) * bytesPerRow;
+
+                // make copy of a row on the top half
+                temp.set(pixels.subarray(topOffset, topOffset + bytesPerRow));
+
+                // copy a row from the bottom half to the top
+                pixels.copyWithin(topOffset, bottomOffset, bottomOffset + bytesPerRow);
+
+                // copy the copy of the top half row to the bottom half 
+                pixels.set(temp, bottomOffset);
+            }
+
+            return { data: pixels };
+        };
         
     }
 

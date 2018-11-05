@@ -36,7 +36,10 @@ uniform float invGamma;
 uniform float time;
 uniform bool dashes;
 uniform float dash_spacing;
+uniform float dash_size;
 uniform float dash_speed;
+uniform vec3 bg_color;
+uniform bool subtractive_color;
 
 in vec2 vTexCoord;
 out vec4 outputColor;
@@ -65,11 +68,20 @@ void main()
     if (dashes)
     {
         float t = image.w;
-        modulation = step(0.0, cos(t/dash_spacing - dash_speed*time));
+        modulation = smoothstep(1.0 - 2.0*dash_size, 1.0, cos(t/dash_spacing - dash_speed*time));
+        C *= modulation;
     }
-        
 
-    outputColor = vec4(modulation*C, 1.0);
+    // Generate final pixel color
+    if (!subtractive_color)
+    {
+        outputColor = vec4(bg_color + C, 1.0);
+    }
+    else
+    {
+        vec3 T = exp(-C);
+        outputColor = vec4(bg_color * T, 1.0);
+    }
 }
 `,
 

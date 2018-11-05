@@ -10,6 +10,8 @@ background-size: 100%;">
 <script src='./js/thirdparty/codemirror/codemirror.js'></script>
 <script src='./js/thirdparty/codemirror/codemirror.css.js'></script>
 <script src='./js/thirdparty/codemirror/clike.js'></script>
+<script src='./js/thirdparty/gif.js/gif.js'></script>
+<script src='./js/thirdparty/gif.js/gif.worker.js'></script>
 <script src='./js/thirdparty/Inlet/inlet.js'></script>
 <script src='./js/thirdparty/Inlet/inlet.css.js'></script>
 <script src='./js/thirdparty/three/three.min.js'></script>
@@ -17,6 +19,7 @@ background-size: 100%;">
 <script src='./js/thirdparty/three/libs/dat.gui.min.js'></script>
 <script src='./js/thirdparty/three/controls/OrbitControls.js'></script>
 <script src='./js/gl.js'></script>
+<script src='./js/presets.js'></script>
 <script src='./js/gui.js'></script>
 <script src='./js/shaders.js'></script>
 <script src='./js/raytracer.js'></script>
@@ -41,11 +44,12 @@ z-index:-2;
 '></div>
 
 
-<button id='toggle-code-button' style='
+<button class='toggle-code-button-class' id='toggle-code-button' style='
 position:absolute;
 z-index:1;
 border:none;
 top: 0px;
+display:inline-block;
 margin-left:5px;
 padding:8;
 outline:0;
@@ -53,9 +57,44 @@ width: 10px;
 height: 10px;
 box-shadow:none!important;
 background:none;
-color:rgb(216, 155, 63);
+color: rgb(58, 227, 139);
 font-size:24px;
-'>☰</button>
+'>&#9776</button>
+
+<button class='share-button-class' id='share-button' style='
+left: 40px;
+position:absolute;
+z-index:1;
+border:none;
+top: 3px;
+display:inline-block;
+margin-left:5px;
+padding:8;
+outline:0;
+width: 10px;
+height: 10px;
+box-shadow:none!important;
+background:none;
+color: rgb(26, 161, 242);
+font-size:22px;
+'>@</button>
+
+<style>
+.toggle-code-button-class:hover,
+.toggle-code-button-class:focus {
+    color: rgb(192, 225, 208)!important;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.share-button-class:hover,
+.share-button-class:focus {
+    color: rgb(146, 202, 232)!important;
+    text-decoration: none;
+    cursor:rgb(107, 107, 210)
+}
+
+</style>
 
 <textarea id="textarea-code" name="textarea-code"> 
 </textarea>
@@ -84,6 +123,79 @@ pointer-events: none;
 '></canvas>
 
 </div>
+</div>
+
+
+<style>
+/* The share-link modal (background) */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgb(0,0,0); /* Fallback color */
+    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+/* share-link modal Content/Box */
+.modal-content {
+    background-color: #fefefe;
+    color: #aaa;
+    margin: 15% auto; /* 15% from the top and centered */
+    padding: 8px;
+    border: 1px solid #888;
+    width: 80%; /* Could be more or less, depending on screen size */
+    word-wrap: break-word !important;
+    white-space: normal !important;
+    font-family: sans-serif;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* share-link modal Close Button */
+.close {
+    color: #aaa;
+    margin: 0% auto; /* 15% from the top and centered */
+    padding: 0px;
+    top: 0 !important;;
+    float: right;
+    font-size: 30px;
+    font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+</style>
+
+<!-- share-link-modal -->
+<div id="share-link-modal" class="modal">
+
+  <!-- share-link modal modal content -->
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    Shareable link :
+    <textarea readonly rows='10' id='share-text' style='
+position:relative; 
+resize: none;
+display:block;
+background-color: #fefefe;
+width:100%;
+word-wrap: break-word !important;
+white-space: normal !important;
+font-family: sans-serif;
+z-index:10;
+'></textarea>
+ 
+  </div>
+
 </div>
 
 
@@ -120,129 +232,60 @@ function onLoad()
         extraKeys: {"Ctrl-Space": "autocomplete"},
         viewportMargin: Infinity,
         mode: "x-shader/x-fragment",
-        readOnly: true
+        readOnly: true,
+        autofocus: true
     });
     error_editor.setOption("theme", 'monokai');
     error_editor.setValue('');
     $(error_editor.getWrapperElement()).hide();
 
-
-    let lorenz = `
-///////////////////////////////////////////s
-// Lorenz attractor
-///////////////////////////////////////////
-
-const float rho = 0.9;     
-const float sigma = 1.0;
-const float beta = 2.0/3.0;
-
-const vec3 colLo = vec3(0, 0, 1);
-const vec3 colHi = vec3(1, 0, 0);
-const float magScale = 0.5;
-
- vec3 velocity(vec3 p, float t)
- {
-     vec3 v;
-     float x = p.x;
-     float y = p.y;
-     float z = p.z;
-     v.x = sigma*(y - x);
-     v.y = x*(rho - z);
-     v.z = x*y - beta*z;
-     return v;
- }    
- 
-vec3 color(vec3 p, float t)
-{
-    vec3 E = velocity(p, t);
-  	float mag2 = dot(E,E) / (magScale*magScale);
-    float lerp = mag2/(1.0+mag2);
-    return (1.0-lerp)*colLo + lerp*colHi;
-}  
-`;
-
-    let dipole = `
-///////////////////////////////////////////s
-// Dipole
-///////////////////////////////////////////
-
-const vec3 colLo = vec3(0, 0, 1);
-const vec3 colHi = vec3(1, 0, 0);
-const float magScale = 2.0;
-
-vec3 E(float q, in vec3 p, vec3 c)
-{
-    vec3 pc = p - c;
-    float r2 = dot(pc, pc);
-    vec3 E = q * (p-c) / (pow(r2, 1.5) + 1.0e-2);
-    return E;
-}
-
-vec3 velocity(vec3 p, float t)
-{
-    vec3 x0 = vec3(0,  0.5, 0);
-    vec3 x1 = vec3(0, -0.5, 0);
-    return E(1.0, p, x0) + E(-1.0, p, x1);
-}    
-
-vec3 color(vec3 p, float t)
-{
-    vec3 E = velocity(p, t);
-  	float mag2 = dot(E,E) / (magScale*magScale);
-    float lerp = mag2/(1.0+mag2);
-    return (1.0-lerp)*colLo + lerp*colHi;
-}  
-`;
-
-    let x_field = `
-    vec3 velocity(vec3 p, float t)
-    {
-        return vec3(cos(p.y), sin(p.x), 1.0);
-    }    
-    vec3 color(vec3 p, float t)
-    {
-        return vec3(1,1,1);
-    }  
-    `;
-
-    let code = lorenz;
-
+    let code = '';
     editor.setValue(code);
 
+    // Initialize Inlet
     Inlet(editor, {container: document.getElementById("container"),
                    fixedContainer: true  
                   });
 
+    // Instantiate Fibre
     fibre = new Fibre(editor, error_editor); 
 
+    // setup CodeMirror events
     var cmEl = document.querySelector('.CodeMirror');
-    var edRect = cmEl.getBoundingClientRect();
     cmEl.addEventListener('mouseenter', function(e) {
         fibre.camControls.enabled = false;
+        fibre.editing = true;
     });
-
     cmEl.addEventListener('mousemove', function(e) {
+        var edRect = cmEl.getBoundingClientRect();
         if (e.clientX >= edRect.left && e.clientX <= edRect.right &&
             e.clientY >= edRect.top  && e.clientY <= edRect.bottom) 
         {
             fibre.camControls.enabled = false;
+            fibre.editing = true;
             return;
         }
+        fibre.editing = false;
         fibre.camControls.enabled = true;
     });
-
     cmEl.addEventListener('mouseleave', function(e) {
-        if (e.clientX >= edRect.left && e.clientX <= edRect.right &&
-            e.clientY >= edRect.top  && e.clientY <= edRect.bottom) 
+        fibre.camControls.enabled = true;
+        fibre.editing = false;
+    });
+    cmEl.addEventListener('keydown', function(e) {
+        if (fibre.editing)
         {
             fibre.camControls.enabled = false;
-            return;
         }
-        fibre.camControls.enabled = true;
+        else
+        {
+            fibre.camControls.enabled = true;
+            e.codemirrorIgnore = true;
+            e.preventDefault();
+        }
     });
 
-
-
+    // start animate loop
     animateLoop(); 
 }
 
@@ -262,6 +305,25 @@ $(document).ready(function()
     $("#toggle-code-button").click(function(){
         $(editor.getWrapperElement()).fadeToggle(1000);
     });
+
+    // Set up modal popup window with share-able link
+    var modal = document.getElementById('share-link-modal');
+    var btn = document.getElementById("share-button");
+    var span = document.getElementsByClassName("close")[0];
+    btn.onclick = function() {
+        modal.style.display = "block";
+        document.getElementById('share-text').innerHTML = fibre.get_url();
+        document.getElementById('share-text').select();
+        document.execCommand("copy");
+    }
+    span.onclick = function() {
+        modal.style.display = "none";
+    }
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
 });
 
 </script>

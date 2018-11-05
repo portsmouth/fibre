@@ -46,57 +46,55 @@ RayState.prototype.detach = function(fbo)
     fbo.detachTexture(2);
 }
 
-/**
-* Interface to the raytracer.
-* @constructor
-* @property {number} [maxNumSteps=256]          - maximum number of raymarching steps per path segment
-* @property {number} [raySize=128]              - number of rays per wavefront is the square of this
-* @property {number} [marchDistance=100.0]      - the total distance travelled by each ray
-* @property {number} [exposure=3.0]             - image exposure, on a log scale
-* @property {number} [gamma=2.2]                - image gamma correction
-*/
 var Raytracer = function()
 {
     this.gl = GLU.gl;
     var gl = GLU.gl;
 
+    this.settings = {}
+
     // Initialize textures containing ray states
-    this.raySize = 128;
+    this.settings.rayBatch = 128;
     this.enabled = true;
     this.pathLength = 0;
     this.initStates();
     this.time_ms = 0.0;
-
     this.waveBuffer = null;
     this.offsetTex = null;
     this.depthBuffer = null;
     this.fluenceBuffer = null;
 
-    this.maxTimeSteps = 128;
-    this.integrationTime = 10.0;
-    this.gridSpace = 0.1;
-    this.tubeWidth = 0.001;
-    this.tubeSpread = false;
-    this.exposure = -1.0;
-    this.gamma = 2.2;
-    this.hairShader = true;
-    this.hairShine = 10.0;
-    this.hairSpecColor = [1.0, 1.0, 1.0];
-    this.depthTest = false;
-    this.clipToBounds = true;
-    this.showBounds = true;
+    // integrator settings
+    this.settings.maxTimeSteps = 128;
+    this.settings.maxIterations = 100;
+    this.settings.integrationTime = 1.0;
+    this.settings.gridSpace = 0.1;
+    this.settings.record_realtime = true;
+    this.settings.xmin = 0.0001;
+    this.settings.xmax = 0.0001;
+    this.settings.ymin = 0.0001;
+    this.settings.ymax = 0.0001;
+    this.settings.zmin = 0.0001;
+    this.settings.zmax = 0.0001;
 
-    this.dash_spacing = 0.05;
-    this.dash_speed = 1.0;
-    this.dashes = false;
-
-    this.xmin = 0.0001;
-    this.xmax = 0.0001;
-    this.ymin = 0.0001;
-    this.ymax = 0.0001;
-    this.zmin = 0.0001;
-    this.zmax = 0.0001;
-
+    // rendering settings
+    this.settings.clipToBounds = true;
+    this.settings.showBounds = true;
+    this.settings.exposure = -1.0;
+    this.settings.gamma = 2.2;
+    this.settings.subtractive_color = false;
+    this.settings.bgColor = [0.0, 0.0, 0.0];
+    this.settings.tubeWidth = 0.001;
+    this.settings.tubeSpread = false;
+    this.settings.hairShader = true;
+    this.settings.hairShine = 10.0;
+    this.settings.hairSpecColor = [1.0, 1.0, 1.0];
+    this.settings.depthTest = false;
+    this.settings.dash_spacing = 0.05;
+    this.settings.dash_speed = 10.0;
+    this.settings.dash_size = 0.5;
+    this.settings.dashes = false;
+    
     // Create a quad VBO for rendering textures
     this.quadVbo = this.createQuadVbo();
     this.boxVbo     = null;
@@ -209,7 +207,8 @@ Raytracer.prototype.createBoxCornerVbos = function()
     boundsMax = bounds.max;
     let o = [boundsMin.x, boundsMin.y, boundsMin.z];
     let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
-    let s = 0.666;
+    let innerR = 0.49;
+    let s = 1.0 - innerR;
     let outerR = 0.1 * Math.max(e[0], e[1], e[2]);
 
     this.cornerVbos = [];
@@ -253,12 +252,12 @@ Raytracer.prototype.resetBounds = function()
     let bounds = fibre.getBounds();
     boundsMin = bounds.min;
     boundsMax = bounds.max;
-    this.xmin = boundsMin.x;
-    this.ymin = boundsMin.y;
-    this.zmin = boundsMin.z;
-    this.xmax = boundsMax.x;
-    this.ymax = boundsMax.y;
-    this.zmax = boundsMax.z;
+    this.settings.xmin = boundsMin.x;
+    this.settings.ymin = boundsMin.y;
+    this.settings.zmin = boundsMin.z;
+    this.settings.xmax = boundsMax.x;
+    this.settings.ymax = boundsMax.y;
+    this.settings.zmax = boundsMax.z;
 }
 
 Raytracer.prototype.reset = function(no_recompile)
@@ -267,6 +266,8 @@ Raytracer.prototype.reset = function(no_recompile)
     this.raysTraced = 0;
     this.pathLength = 0;
     this.time_ms = 0.0;
+
+    this.reset_time = performance.now();
 
     if (!no_recompile)
         this.compileShaders();
@@ -281,7 +282,7 @@ Raytracer.prototype.reset = function(no_recompile)
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.tmp_fbo.unbind();
 
-    this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
 }
 
 Raytracer.prototype.compileShaders = function()
@@ -331,13 +332,13 @@ Raytracer.prototype.compileShaders = function()
 
 Raytracer.prototype.initStates = function()
 {
-    this.raySize = Math.floor(this.raySize);
-    this.rayCount = this.raySize*this.raySize;
+    this.settings.rayBatch = Math.floor(this.settings.rayBatch);
+    this.rayCount = this.settings.rayBatch*this.settings.rayBatch;
     this.currentState = 0;
-    this.rayStates = [new RayState(this.raySize), new RayState(this.raySize)];
+    this.rayStates = [new RayState(this.settings.rayBatch), new RayState(this.settings.rayBatch)];
     
     if (this.offsetTex) this.offsetTex.delete();
-    this.offsetTex = new GLU.Texture(this.raySize, this.raySize, 4, true, false, true, null);
+    this.offsetTex = new GLU.Texture(this.settings.rayBatch, this.settings.rayBatch, 4, true, false, true, null);
 
     // Create the buffer of texture coordinates, which maps each drawn line
     // to its corresponding texture lookup.
@@ -349,8 +350,8 @@ Raytracer.prototype.initStates = function()
         var vboData = new Float32Array(this.rayCount*2*3);
         for (var i=0; i<this.rayCount; ++i)
         {
-            var u = ((i % this.raySize) + 0.5) / this.raySize;
-            var v = (Math.floor(i/this.raySize) + 0.5) / this.raySize;
+            var u = ((i % this.settings.rayBatch) + 0.5) / this.settings.rayBatch;
+            var v = (Math.floor(i/this.settings.rayBatch) + 0.5) / this.settings.rayBatch;
             vboData[i*6 + 0] = vboData[i*6 + 3] = u;
             vboData[i*6 + 1] = vboData[i*6 + 4] = v;
             vboData[i*6 + 2] = 0.0;
@@ -387,19 +388,21 @@ Raytracer.prototype.composite = function()
     // Normalize the emission by dividing by the total number of paths
     // (and also apply gamma correction)
     let Npasses = Math.max(this.wavesTraced, 1);
-    this.compProgram.uniformF("invNpasses", this.depthTest ? 10.0/Npasses : 1.0/Npasses);
-    this.compProgram.uniformF("exposure", this.exposure);
-    this.compProgram.uniformF("invGamma", 1.0/this.gamma);
-    this.compProgram.uniformF("time", this.time_ms/1.0e3);
+    this.compProgram.uniformF("invNpasses", this.settings.depthTest ? 10.0/Npasses : 1.0/Npasses);
 
-    this.compProgram.uniformI("dashes", this.dashes);
-    this.compProgram.uniformF("dash_spacing", scale*this.dash_spacing);
-    this.compProgram.uniformF("dash_speed", this.dash_speed);
+    let time_since_reset_ms = performance.now() - this.reset_time;
+    this.compProgram.uniformF("time", time_since_reset_ms/1.0e3);
 
-    gl.enable(gl.BLEND);
-    gl.blendEquation(gl.FUNC_ADD);
-    gl.blendFunc(gl.ONE, gl.ONE);
-
+    this.compProgram.uniformF("exposure", this.settings.exposure);
+    this.compProgram.uniformF("invGamma", 1.0/this.settings.gamma);
+    this.compProgram.uniformI("dashes", this.settings.dashes);
+    this.compProgram.uniformF("dash_spacing", scale*this.settings.gridSpace*this.settings.dash_spacing);
+    this.compProgram.uniformF("dash_speed", this.settings.dash_speed);
+    this.compProgram.uniformF("dash_size", this.settings.dash_size);
+    this.compProgram.uniform3Fv("bg_color", this.settings.bgColor);
+    this.compProgram.uniformI("subtractive_color", this.settings.subtractive_color);
+    
+    gl.disable(gl.BLEND);
     this.fluenceBuffer.bind(0);
     this.compProgram.uniformTexture("Fluence", this.fluenceBuffer);
     this.quadVbo.draw(this.compProgram, this.gl.TRIANGLE_FAN);
@@ -417,8 +420,13 @@ Raytracer.prototype.isEnabled = function()
 Raytracer.prototype.render = function()
 {
     if (!this.enabled) return;
+    if (this.gif_rendering) return;
     var gl = GLU.gl;
     var timer_start = performance.now();
+
+    gl.viewport(0, 0, this.width, this.height);
+    gl.depthMask(true);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Get camera matrices
     var camera = fibre.camera;
@@ -449,10 +457,10 @@ Raytracer.prototype.render = function()
     }
 
     // Initialize ray start points, colors, and random seeds
-    if (this.traceProgram)
+    if (this.traceProgram && this.wavesTraced<this.settings.maxIterations)
     {
         gl.disable(gl.BLEND);
-        gl.viewport(0, 0, this.raySize, this.raySize);
+        gl.viewport(0, 0, this.settings.rayBatch, this.settings.rayBatch);
 
         this.ray_fbo.bind();
         this.ray_fbo.drawBuffers(4);
@@ -472,9 +480,9 @@ Raytracer.prototype.render = function()
         this.initProgram.uniformTexture("RngData", this.rayStates[current].rngTex);
         this.initProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
         this.initProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
-        this.initProgram.uniformF("gridSpace", scale*this.gridSpace);
-        this.initProgram.uniformF("tubeWidth", scale*this.tubeWidth);
-        this.initProgram.uniformI("tubeSpread", this.tubeSpread);
+        this.initProgram.uniformF("gridSpace", scale*this.settings.gridSpace);
+        this.initProgram.uniformF("tubeWidth", scale*this.settings.tubeWidth);
+        this.initProgram.uniformI("tubeSpread", this.settings.tubeSpread);
 
         this.quadVbo.draw(this.initProgram, gl.TRIANGLE_FAN);
         this.currentState = 1 - this.currentState;
@@ -486,21 +494,20 @@ Raytracer.prototype.render = function()
     if (this.traceProgram)
     {
         this.traceProgram.bind();
-        let timestep = this.integrationTime / this.maxTimeSteps;
+        let timestep = this.settings.integrationTime / this.settings.maxTimeSteps;
         this.traceProgram.uniformF("timestep", timestep);
         this.traceProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
         this.traceProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
-        this.traceProgram.uniformI("clipToBounds", this.clipToBounds);
+        this.traceProgram.uniformI("clipToBounds", this.settings.clipToBounds);
     }
 
     // Prepare line drawing program
     {
         this.lineProgram.bind();
         this.lineProgram.uniform3Fv("V", [camDir.x, camDir.y, camDir.z]);
-        this.lineProgram.uniformI("hairShader", this.hairShader);
-        this.lineProgram.uniformF("hairShine", this.hairShine);
-        this.lineProgram.uniform3Fv("hairSpecColor", this.hairSpecColor);
- 
+        this.lineProgram.uniformI("hairShader", this.settings.hairShader);
+        this.lineProgram.uniformF("hairShine", this.settings.hairShine);
+        this.lineProgram.uniform3Fv("hairSpecColor", this.settings.hairSpecColor);
        
         // Setup projection matrix
         var projectionMatrixLocation = this.lineProgram.getUniformLocation("u_projectionMatrix");
@@ -513,17 +520,17 @@ Raytracer.prototype.render = function()
 
     gl.disable(gl.BLEND);
 
-    if (this.traceProgram)
+    if (this.traceProgram && this.wavesTraced<this.settings.maxIterations)
     {
         // Integrate progressively along the wavefront of rays
-        while (this.pathLength < this.maxTimeSteps)
+        while (this.pathLength < this.settings.maxTimeSteps)
         {
             let current = this.currentState;
             let next = 1 - current;
 
             // Propagate the current set of rays through the vector field, generating new ray pos/dir data in 'next' rayStates textures
             {
-                gl.viewport(0, 0, this.raySize, this.raySize);
+                gl.viewport(0, 0, this.settings.rayBatch, this.settings.rayBatch);
                 this.ray_fbo.bind();
                 this.ray_fbo.drawBuffers(3);
                 this.rayStates[next].attach(this.ray_fbo);
@@ -541,7 +548,7 @@ Raytracer.prototype.render = function()
                 this.img_fbo.bind();
                 gl.viewport(0, 0, this.width, this.height);
 
-                if (this.depthTest)
+                if (this.settings.depthTest)
                 {
                     gl.enable(gl.DEPTH_TEST);
                     gl.disable(gl.BLEND);
@@ -567,7 +574,7 @@ Raytracer.prototype.render = function()
                 this.lineProgram.uniformTexture("RgbDataB", this.rayStates[   next].rgbTex);
                 this.lineProgram.uniformTexture("OffsetData", this.offsetTex);
                 this.rayVbo.bind(); // Binds the TexCoord attribute
-                this.rayVbo.draw(this.lineProgram, gl.LINES, this.raySize*this.raySize*2);
+                this.rayVbo.draw(this.lineProgram, gl.LINES, this.settings.rayBatch*this.settings.rayBatch*2);
                 this.img_fbo.unbind();
                 gl.disable(gl.BLEND);
             }
@@ -594,9 +601,12 @@ Raytracer.prototype.render = function()
         gl.disable(gl.BLEND);
 
         // Final composite of normalized fluence to window
-        this.raysTraced += this.raySize*this.raySize;
-        this.composite();
+        this.raysTraced += this.settings.rayBatch*this.settings.rayBatch;
+        this.wavesTraced += 1;
     }
+
+    gl.viewport(0, 0, this.width, this.height);
+    this.composite();
 
     // Draw grid bounds
     {
@@ -615,12 +625,13 @@ Raytracer.prototype.render = function()
         gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
 
         let boundsHit = fibre.boundsHit;
+        let C = this.settings.bgColor;
         if (boundsHit && boundsHit.hit && boundsHit.type == 'center')
-            this.boxProgram.uniform4Fv("color", [1.0, 0.9, 0.9, 0.5]);
+            this.boxProgram.uniform4Fv("color", [1.0-C[0], 0.5*(1.0-C[1]), 0.5*(1.0-C[2]), 0.6]);
         else
-            this.boxProgram.uniform4Fv("color", [1.0, 1.0, 1.0, 0.2]);
+            this.boxProgram.uniform4Fv("color", [1.0-C[0], 1.0-C[1], 1.0-C[2], 0.25]);
 
-        if ((boundsHit && boundsHit.hit) || this.showBounds)
+        if ((boundsHit && boundsHit.hit) || this.settings.showBounds)
         {
             if (!this.boxVbo)
             {
@@ -644,17 +655,37 @@ Raytracer.prototype.render = function()
                 let boxCornerVbos = this.cornerVbos[corner_index];
                 let boxCornerVbo = boxCornerVbos[axis_index];
                 boxCornerVbo.bind();
-                this.boxProgram.uniform4Fv("color", [1.0, 0.8, 0.1, 0.5]);
+                this.boxProgram.uniform4Fv("color", [1.0-this.settings.bgColor[0], 0.8*(1.0-this.settings.bgColor[1]), 0.1*(1.0-this.settings.bgColor[2]), 0.5]);
                 boxCornerVbo.draw(this.boxProgram, gl.LINES);
             }
         }
     }
 
-    this.wavesTraced += 1;
     this.pathLength = 0;
+    
+    // GIF rendering
+    if (fibre.GIF)
+    {
+        let gif_time_ms = performance.now() - fibre.gif_timer_start_ms;
+        if (gif_time_ms >= fibre.gif_timer_max_duration)
+        {
+            fibre.gif_rendering = true;
+            fibre.GIF.render();
+            fibre.GIF = null;
+        }
+        else
+        {   
+            let since_last_gif_frame_ms = performance.now() - fibre.gif_last_frame_ms;
+            let gifframe_ms = this.settings.record_realtime ? Math.ceil(since_last_gif_frame_ms) : 41;
+            fibre.GIF.addFrame(gl, {delay: gifframe_ms, copy: true});
+            fibre.gif_last_frame_ms = performance.now();
+        }
+    }
+
     var timer_end = performance.now();
     var frame_time_ms = (timer_end - timer_start);
     this.time_ms += frame_time_ms;
+    gl.finish();
 }
 
 
