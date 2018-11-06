@@ -74,7 +74,7 @@ function hexToRgb(hex)
 GUI.prototype.createguiSettings = function()
 {
     this.guiSettings = {};
-    var raytracer = fibre.getRaytracer();
+    var renderer = fibre.getRenderer();
     let ME = this;
 
     // Presets folder
@@ -87,79 +87,78 @@ GUI.prototype.createguiSettings = function()
 
     // Integrator folder
     this.integratorFolder = this.gui.addFolder('Integrator');
-    this.integratorFolder.add(raytracer.settings, 'maxTimeSteps', 4, 4096).onChange( function(value) { raytracer.settings.maxTimeSteps = Math.floor(value); raytracer.reset(true); } );
-    this.integratorFolder.add(raytracer.settings, 'integrationTime', 0.1, 1000.0).onChange( function(value) { raytracer.reset(true); } );
-    this.integratorFolder.add(raytracer.settings, 'gridSpace', 0.0, 1.0).onChange( function(value) { raytracer.reset(true); } );
-    this.integratorFolder.add(raytracer.settings, 'xmin').onChange( function(value) { if (fibre.get_xmax() < value) raytracer.settings.xmin = fibre.get_xmax(); else fibre.set_xmin(value); });
-    this.integratorFolder.add(raytracer.settings, 'xmax').onChange( function(value) { if (fibre.get_xmin() > value) raytracer.settings.xmax = fibre.get_xmin(); else fibre.set_xmax(value); });
-    this.integratorFolder.add(raytracer.settings, 'ymin').onChange( function(value) { if (fibre.get_ymax() < value) raytracer.settings.ymin = fibre.get_ymax(); else fibre.set_ymin(value); });  
-    this.integratorFolder.add(raytracer.settings, 'ymax').onChange( function(value) { if (fibre.get_ymin() > value) raytracer.settings.ymax = fibre.get_ymin(); else fibre.set_ymax(value); });
-    this.integratorFolder.add(raytracer.settings, 'zmin').onChange( function(value) { if (fibre.get_zmax() < value) raytracer.settings.zmin = fibre.get_zmax(); else fibre.set_zmin(value); });
-    this.integratorFolder.add(raytracer.settings, 'zmax').onChange( function(value) { if (fibre.get_zmin() > value) raytracer.settings.zmax = fibre.get_zmin(); else fibre.set_zmax(value); });
-    
+    this.integratorFolder.add(renderer.settings, 'maxTimeSteps', 4, 4096).onChange( function(value) { renderer.settings.maxTimeSteps = Math.floor(value); renderer.reset(true); } );
+    this.integratorFolder.add(renderer.settings, 'integrationTime', 0.1, 1000.0).onChange( function(value) { renderer.reset(true); } );
+    this.integratorFolder.add(renderer.settings, 'gridSpace', 0.0, 1.0).onChange( function(value) { renderer.reset(true); } );
+    this.integratorFolder.add(renderer.settings, 'xmin').onChange( function(value) { if (fibre.get_xmax() < value) renderer.settings.xmin = fibre.get_xmax(); else fibre.set_xmin(value); });
+    this.integratorFolder.add(renderer.settings, 'xmax').onChange( function(value) { if (fibre.get_xmin() > value) renderer.settings.xmax = fibre.get_xmin(); else fibre.set_xmax(value); });
+    this.integratorFolder.add(renderer.settings, 'ymin').onChange( function(value) { if (fibre.get_ymax() < value) renderer.settings.ymin = fibre.get_ymax(); else fibre.set_ymin(value); });  
+    this.integratorFolder.add(renderer.settings, 'ymax').onChange( function(value) { if (fibre.get_ymin() > value) renderer.settings.ymax = fibre.get_ymin(); else fibre.set_ymax(value); });
+    this.integratorFolder.add(renderer.settings, 'zmin').onChange( function(value) { if (fibre.get_zmax() < value) renderer.settings.zmin = fibre.get_zmax(); else fibre.set_zmin(value); });
+    this.integratorFolder.add(renderer.settings, 'zmax').onChange( function(value) { if (fibre.get_zmin() > value) renderer.settings.zmax = fibre.get_zmin(); else fibre.set_zmax(value); });
+    this.integratorFolder.add(renderer.settings, 'clipToBounds').onChange( function(value) { renderer.reset(true); } );
+    this.integratorFolder.add(renderer.settings, 'showBounds').onChange( function(value) { renderer.reset(true); } );
+
     // Renderer folder
     this.rendererFolder = this.gui.addFolder('Renderer');
-    this.rendererFolder.add(raytracer.settings, 'clipToBounds').onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer.settings, 'showBounds').onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer.settings, 'exposure', -10.0, 10.0);
-    this.rendererFolder.add(raytracer.settings, 'gamma', 0.0, 3.0);
-    this.rendererFolder.add(raytracer.settings, 'subtractive_color').onChange( function(value) { raytracer.reset(true); } );
+    this.rendererFolder.add(renderer.settings, 'exposure', -10.0, 10.0);
+    this.rendererFolder.add(renderer.settings, 'gamma', 0.0, 3.0);
+    this.rendererFolder.add(renderer.settings, 'subtractive_color').onChange( function(value) { renderer.reset(true); } );
 
-    this.guiSettings.bgColor = [raytracer.settings.bgColor[0]*255.0, 
-                                raytracer.settings.bgColor[1]*255.0, 
-                                raytracer.settings.bgColor[2]*255.0];
+    this.guiSettings.bgColor = [renderer.settings.bgColor[0]*255.0, 
+                                renderer.settings.bgColor[1]*255.0, 
+                                renderer.settings.bgColor[2]*255.0];
     this.rendererFolder.addColor(this.guiSettings, 'bgColor').onChange( function(value) 
         { 
             if (typeof value==='string' || value instanceof String)
             {
                 var color = hexToRgb(value);
-                raytracer.settings.bgColor[0] = color.r / 255.0;
-                raytracer.settings.bgColor[1] = color.g / 255.0;
-                raytracer.settings.bgColor[2] = color.b / 255.0;
+                renderer.settings.bgColor[0] = color.r / 255.0;
+                renderer.settings.bgColor[1] = color.g / 255.0;
+                renderer.settings.bgColor[2] = color.b / 255.0;
             }
             else
             {
-                raytracer.settings.bgColor[0] = value[0] / 255.0;
-                raytracer.settings.bgColor[1] = value[1] / 255.0;
-                raytracer.settings.bgColor[2] = value[2] / 255.0;
+                renderer.settings.bgColor[0] = value[0] / 255.0;
+                renderer.settings.bgColor[1] = value[1] / 255.0;
+                renderer.settings.bgColor[2] = value[2] / 255.0;
             }
-            raytracer.reset(true);
+            renderer.reset(true);
         });
 
-    this.rendererFolder.add(raytracer.settings, 'tubeWidth', 0.0, 0.01).onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer.settings, 'tubeSpread').onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer.settings, 'hairShader').onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer.settings, 'hairShine', 0.0, 100.0).onChange( function(value) { raytracer.reset(true); } );
-    this.guiSettings.hairSpecColor = [raytracer.settings.hairSpecColor[0]*255.0, 
-                                      raytracer.settings.hairSpecColor[1]*255.0, 
-                                      raytracer.settings.hairSpecColor[2]*255.0];
-    this.rendererFolder.addColor(this.guiSettings, 'hairSpecColor').onChange( function(value) 
+    this.rendererFolder.add(renderer.settings, 'tubeWidth', 0.0, 0.1).onChange( function(value) { renderer.reset(true); } );
+    this.rendererFolder.add(renderer.settings, 'tubeSpread').onChange( function(value) { renderer.reset(true); } );
+    this.rendererFolder.add(renderer.settings, 'specShine', 0.0, 100.0).onChange( function(value) { renderer.reset(true); } );
+    this.guiSettings.specColor = [renderer.settings.specColor[0]*255.0, 
+                                  renderer.settings.specColor[1]*255.0, 
+                                  renderer.settings.specColor[2]*255.0];
+    this.rendererFolder.addColor(this.guiSettings, 'specColor').onChange( function(value) 
         { 
             if (typeof value==='string' || value instanceof String)
             {
                 var color = hexToRgb(value);
-                raytracer.settings.hairSpecColor[0] = color.r / 255.0;
-                raytracer.settings.hairSpecColor[1] = color.g / 255.0;
-                raytracer.settings.hairSpecColor[2] = color.b / 255.0;
+                renderer.settings.specColor[0] = color.r / 255.0;
+                renderer.settings.specColor[1] = color.g / 255.0;
+                renderer.settings.specColor[2] = color.b / 255.0;
             }
             else
             {
-                raytracer.settings.hairSpecColor[0] = value[0] / 255.0;
-                raytracer.settings.hairSpecColor[1] = value[1] / 255.0;
-                raytracer.settings.hairSpecColor[2] = value[2] / 255.0;
+                renderer.settings.specColor[0] = value[0] / 255.0;
+                renderer.settings.specColor[1] = value[1] / 255.0;
+                renderer.settings.specColor[2] = value[2] / 255.0;
             }
-            raytracer.reset(true);
+            renderer.reset(true);
         });
-    this.rendererFolder.add(raytracer.settings, 'depthTest').onChange( function(value) { raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer.settings, 'dashes').onChange( function(value) { if (value) raytracer.settings.depthTest = true; ME.sync(); raytracer.reset(true); } );
-    this.rendererFolder.add(raytracer.settings, 'dash_spacing', 0.0, 1.0);
-    this.rendererFolder.add(raytracer.settings, 'dash_size', 0.0, 1.0);
-    this.rendererFolder.add(raytracer.settings, 'dash_speed', 0.0, 1000.0);
+    this.rendererFolder.add(renderer.settings, 'depthTest').onChange( function(value) { renderer.reset(true); } );
+    this.rendererFolder.add(renderer.settings, 'dashes').onChange( function(value) { if (value) renderer.settings.depthTest = true; ME.sync(); renderer.reset(true); } );
+    this.rendererFolder.add(renderer.settings, 'dash_spacing', 0.0, 1.0);
+    this.rendererFolder.add(renderer.settings, 'dash_size', 0.0, 1.0);
+    this.rendererFolder.add(renderer.settings, 'dash_speed', 0.0, 1000.0);
     
     // Advanced folder
     this.advancedFolder = this.gui.addFolder('Advanced');
-    this.advancedFolder.add(raytracer.settings, 'rayBatch', 4, 1024).onChange( function(value) { raytracer.rayBatch = Math.floor(value); raytracer.initStates(); raytracer.reset(true); } );
-    this.advancedFolder.add(raytracer.settings, 'maxIterations', 10, 1000).onChange( function(value) { raytracer.reset(true); } );
+    this.advancedFolder.add(renderer.settings, 'rayBatch', 4, 1024).onChange( function(value) { renderer.rayBatch = Math.floor(value); renderer.initStates(); renderer.reset(true); } );
+    this.advancedFolder.add(renderer.settings, 'maxIterations', 10, 1000).onChange( function(value) { renderer.reset(true); } );
 
     let button_record = { record:function(e) { 
         let button = ME._toggle_record_button;
@@ -177,7 +176,7 @@ GUI.prototype.createguiSettings = function()
     let button_recordoneperiod_ui = this.advancedFolder.add(button_recordoneperiod, 'recordoneperiod').name('RECORD PERIOD');
     this._toggle_recordoneperiod_button = button_recordoneperiod_ui.__li;
 
-    this.advancedFolder.add(raytracer.settings, 'record_realtime', true);
+    this.advancedFolder.add(renderer.settings, 'record_realtime', true);
 
     this.presetsFolder.open();
     this.integratorFolder.close();

@@ -2,35 +2,27 @@ precision highp float;
 
 in vec4 vColor; // user color
 in vec3 T;      // tangent
+in vec3 D;      // local offset (from axis to surface)
 in float t;     // integration parameter 
 
 uniform vec3 V;
-uniform bool hairShader;
-uniform float hairShine;
-uniform vec3 hairSpecColor;
+uniform float specShine;
+uniform vec3 specColor;
 
 out vec4 outputColor;
 
 #define oos3 0.57735026919
-const vec3 L = vec3(oos3, oos3, oos3);
+const vec3 L = vec3(0, 1, 0); //oos3, oos3, oos3);
 
 void main()
 {
-    if (hairShader)
-    {
-        // Kajiya-Kay hair shader
-        float dotTL = dot(T, L);
-        float sinTL = sqrt(max(0.0, 1.0 - dotTL*dotTL));
-        float dotTE = dot(T, -V);
-        float sinTE = sqrt(max(0.0, 1.0 - dotTE*dotTE));
-        vec4 diffuse = vColor * sinTL;
-        vec4 specular = vec4(hairSpecColor, 1) * pow(abs(-dotTL*dotTE + sinTL*sinTE), hairShine);
-        outputColor = diffuse + specular;
-    }
-    else
-    {
-        outputColor = vColor;
-    }
-
+    vec3 N = normalize(D);
+    float dotTL = dot(T, L);
+    float sinTL = sqrt(max(0.0, 1.0 - dotTL*dotTL));
+    float dotTE = dot(T, -V);
+    float sinTE = sqrt(max(0.0, 1.0 - dotTE*dotTE));
+    vec3 diffuse = vColor.rgb * sinTL * max(0.0, dot(L, N));                     // kajiya-kay diffuse
+    vec3 specular = specColor * pow(abs(-dotTL*dotTE + sinTL*sinTE), specShine); // kajiya-kay spec
+    outputColor.rgb = diffuse + specular;
     outputColor.w = t;
 }

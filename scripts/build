@@ -43,7 +43,7 @@ jsSources = [
 '../js/gl.js',
 '../js/gui.js',
 '../js/shaders.js',
-'../js/raytracer.js',
+'../js/renderer.js',
 '../js/fibre.js' 
 ]
 

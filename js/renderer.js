@@ -46,7 +46,7 @@ RayState.prototype.detach = function(fbo)
     fbo.detachTexture(2);
 }
 
-var Raytracer = function()
+var Renderer = function()
 {
     this.gl = GLU.gl;
     var gl = GLU.gl;
@@ -86,9 +86,8 @@ var Raytracer = function()
     this.settings.bgColor = [0.0, 0.0, 0.0];
     this.settings.tubeWidth = 0.001;
     this.settings.tubeSpread = false;
-    this.settings.hairShader = true;
-    this.settings.hairShine = 10.0;
-    this.settings.hairSpecColor = [1.0, 1.0, 1.0];
+    this.settings.specShine = 10.0;
+    this.settings.specColor = [1.0, 1.0, 1.0];
     this.settings.depthTest = false;
     this.settings.dash_spacing = 0.05;
     this.settings.dash_speed = 10.0;
@@ -111,7 +110,7 @@ var Raytracer = function()
     this.initStates();
 }
 
-Raytracer.prototype.createQuadVbo = function()
+Renderer.prototype.createQuadVbo = function()
 {
     var vbo = new GLU.VertexBuffer();
     vbo.addAttribute("Position", 3, this.gl.FLOAT, false);
@@ -126,7 +125,7 @@ Raytracer.prototype.createQuadVbo = function()
     return vbo;
 }
 
-Raytracer.prototype.deleteBoxVbo = function()
+Renderer.prototype.deleteBoxVbo = function()
 {
     if (this.boxVbo)
     {
@@ -135,7 +134,7 @@ Raytracer.prototype.deleteBoxVbo = function()
     }
 }
 
-Raytracer.prototype.createBoxVbo = function(origin, extents)
+Renderer.prototype.createBoxVbo = function(origin, extents)
 {
     if (this.boxVbo)
     {
@@ -180,7 +179,7 @@ Raytracer.prototype.createBoxVbo = function(origin, extents)
     this.boxVbo = vbo;
 }
 
-Raytracer.prototype.deleteBoxCornerVbos = function()
+Renderer.prototype.deleteBoxCornerVbos = function()
 {
     if (this.cornerVbos)
     {
@@ -195,7 +194,7 @@ Raytracer.prototype.deleteBoxCornerVbos = function()
     }
 }
 
-Raytracer.prototype.createBoxCornerVbos = function()
+Renderer.prototype.createBoxCornerVbos = function()
 {
     if (this.cornerVbos)
     {
@@ -245,7 +244,7 @@ Raytracer.prototype.createBoxCornerVbos = function()
     }
 }
 
-Raytracer.prototype.resetBounds = function()
+Renderer.prototype.resetBounds = function()
 {
     this.deleteBoxVbo();
     this.deleteBoxCornerVbos();
@@ -260,7 +259,7 @@ Raytracer.prototype.resetBounds = function()
     this.settings.zmax = boundsMax.z;
 }
 
-Raytracer.prototype.reset = function(no_recompile)
+Renderer.prototype.reset = function(no_recompile)
 {
     this.wavesTraced = 0;
     this.raysTraced = 0;
@@ -285,7 +284,7 @@ Raytracer.prototype.reset = function(no_recompile)
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 }
 
-Raytracer.prototype.compileShaders = function()
+Renderer.prototype.compileShaders = function()
 {
     // internal shaders
     this.lineProgram  = new GLU.Shader('line',  this.shaderSources, null);
@@ -330,7 +329,7 @@ Raytracer.prototype.compileShaders = function()
     fibre.disable_errors();
 }
 
-Raytracer.prototype.initStates = function()
+Renderer.prototype.initStates = function()
 {
     this.settings.rayBatch = Math.floor(this.settings.rayBatch);
     this.rayCount = this.settings.rayBatch*this.settings.rayBatch;
@@ -361,7 +360,7 @@ Raytracer.prototype.initStates = function()
     }
 }
 
-Raytracer.prototype.getStats = function()
+Renderer.prototype.getStats = function()
 {
     stats = {};
     stats.rayCount    = this.raysTraced;
@@ -370,7 +369,7 @@ Raytracer.prototype.getStats = function()
     return stats;
 }
 
-Raytracer.prototype.composite = function()
+Renderer.prototype.composite = function()
 {
     let gl = GLU.gl;
 
@@ -410,14 +409,12 @@ Raytracer.prototype.composite = function()
     gl.disable(gl.BLEND);
 }
 
-
-Raytracer.prototype.isEnabled = function()
+Renderer.prototype.isEnabled = function()
 {
 	return this.enabled;
 }
 
-
-Raytracer.prototype.render = function()
+Renderer.prototype.render = function()
 {
     if (!this.enabled) return;
     if (this.gif_rendering) return;
@@ -505,9 +502,8 @@ Raytracer.prototype.render = function()
     {
         this.lineProgram.bind();
         this.lineProgram.uniform3Fv("V", [camDir.x, camDir.y, camDir.z]);
-        this.lineProgram.uniformI("hairShader", this.settings.hairShader);
-        this.lineProgram.uniformF("hairShine", this.settings.hairShine);
-        this.lineProgram.uniform3Fv("hairSpecColor", this.settings.hairSpecColor);
+        this.lineProgram.uniformF("specShine", this.settings.specShine);
+        this.lineProgram.uniform3Fv("specColor", this.settings.specColor);
        
         // Setup projection matrix
         var projectionMatrixLocation = this.lineProgram.getUniformLocation("u_projectionMatrix");
@@ -688,8 +684,7 @@ Raytracer.prototype.render = function()
     gl.finish();
 }
 
-
-Raytracer.prototype.resize = function(width, height)
+Renderer.prototype.resize = function(width, height)
 {
     let gl = GLU.gl;
 

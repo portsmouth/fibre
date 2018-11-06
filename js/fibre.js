@@ -60,8 +60,8 @@ var Fibre = function(editor, error_editor)
     this.gui = null;
     this.guiVisible = true;
 
-    // Instantiate raytracer
-    this.raytracer = new Raytracer();
+    // Instantiate renderer
+    this.renderer = new Renderer();
     this.auto_resize = true;
 
     // Field presets
@@ -72,7 +72,7 @@ var Fibre = function(editor, error_editor)
     this.gui = new GUI(this.guiVisible);
 
     // Setup codemirror events:
-    let raytracer = this.raytracer;
+    let renderer = this.renderer;
     let ME = this;
     this.editor.on("change", function(cm, n) {
         ME.code = cm.getValue();
@@ -136,9 +136,9 @@ Fibre.prototype.handleEvent = function(event)
 * Access to the Renderer object
 *  @returns {Renderer}
 */
-Fibre.prototype.getRaytracer = function()
+Fibre.prototype.getRenderer = function()
 {
-	return this.raytracer;
+	return this.renderer;
 }
 
 
@@ -193,12 +193,12 @@ Fibre.prototype.getBounds = function()
     return this.bounds;
 }
 
-Fibre.prototype.set_xmin = function(val) { if (val == this.bounds.min.getComponent(0)) return; this.bounds.min.setComponent(0, val); this.raytracer.resetBounds(); this.reset(); }
-Fibre.prototype.set_ymin = function(val) { if (val == this.bounds.min.getComponent(1)) return; this.bounds.min.setComponent(1, val); this.raytracer.resetBounds(); this.reset(); }
-Fibre.prototype.set_zmin = function(val) { if (val == this.bounds.min.getComponent(2)) return; this.bounds.min.setComponent(2, val); this.raytracer.resetBounds(); this.reset(); }
-Fibre.prototype.set_xmax = function(val) { if (val == this.bounds.max.getComponent(0)) return; this.bounds.max.setComponent(0, val); this.raytracer.resetBounds(); this.reset(); }
-Fibre.prototype.set_ymax = function(val) { if (val == this.bounds.max.getComponent(1)) return; this.bounds.max.setComponent(1, val); this.raytracer.resetBounds(); this.reset(); }
-Fibre.prototype.set_zmax = function(val) { if (val == this.bounds.max.getComponent(2)) return; this.bounds.max.setComponent(2, val); this.raytracer.resetBounds(); this.reset(); }
+Fibre.prototype.set_xmin = function(val) { if (val == this.bounds.min.getComponent(0)) return; this.bounds.min.setComponent(0, val); this.renderer.resetBounds(); this.reset(); }
+Fibre.prototype.set_ymin = function(val) { if (val == this.bounds.min.getComponent(1)) return; this.bounds.min.setComponent(1, val); this.renderer.resetBounds(); this.reset(); }
+Fibre.prototype.set_zmin = function(val) { if (val == this.bounds.min.getComponent(2)) return; this.bounds.min.setComponent(2, val); this.renderer.resetBounds(); this.reset(); }
+Fibre.prototype.set_xmax = function(val) { if (val == this.bounds.max.getComponent(0)) return; this.bounds.max.setComponent(0, val); this.renderer.resetBounds(); this.reset(); }
+Fibre.prototype.set_ymax = function(val) { if (val == this.bounds.max.getComponent(1)) return; this.bounds.max.setComponent(1, val); this.renderer.resetBounds(); this.reset(); }
+Fibre.prototype.set_zmax = function(val) { if (val == this.bounds.max.getComponent(2)) return; this.bounds.max.setComponent(2, val); this.renderer.resetBounds(); this.reset(); }
 
 Fibre.prototype.get_xmin = function() { return this.bounds.min.getComponent(0); }
 Fibre.prototype.get_ymin = function() { return this.bounds.min.getComponent(1); }
@@ -272,13 +272,12 @@ Fibre.prototype.get_state = function()
     };
     let editor_settings = { code: this.code } ;
     let gui_settings = { visible: this.guiVisible };
-    let state = { R: this.raytracer.settings,
+    let state = { R: this.renderer.settings,
                   C: camera_settings,
                   E: editor_settings };
 
     return state;
 }
-
 
 Fibre.prototype.load_url = function(url)
 {
@@ -293,7 +292,6 @@ Fibre.prototype.load_url = function(url)
     this.load_state(state);
     return true;
 }
-
 
 Fibre.prototype.load_state = function(state)
 {
@@ -319,13 +317,12 @@ Fibre.prototype.load_state = function(state)
     
     this.editor.setValue(state.E.code);
 
-    this.raytracer.settings = state.R;
-    
+    this.renderer.settings = Object.assign(this.renderer.settings, state.R);
+
     this.camControls.update();
     this.gui.refresh();
     this.reset();
 }
-
 
 Fibre.prototype.link_error = function(program_info, error_log)
 {
@@ -333,7 +330,6 @@ Fibre.prototype.link_error = function(program_info, error_log)
     console.log("\t\tprogram_info: ", program_info);
     console.log("\t\terror_log: ", error_log);
 }
-
 
 Fibre.prototype.disable_errors = function()
 {
@@ -376,7 +372,7 @@ Fibre.prototype.reset = function(no_recompile = false)
 {
 	if (!this.initialized || this.terminated) return;
     this.gui.sync();
-	this.raytracer.reset(no_recompile);
+	this.renderer.reset(no_recompile);
 }
 
 Fibre.prototype.project = function(v, axis)
@@ -529,7 +525,7 @@ Fibre.prototype.render = function()
     this.rendering = true;
 
     if (!this.gif_rendering)
-        this.raytracer.render();
+        this.renderer.render();
 
     // Update HUD text canvas
     if (this.textCtx)
@@ -554,8 +550,8 @@ Fibre.prototype.render = function()
                 this.textCtx.fillStyle = "#ffaa22";
                 if (!this.gif_rendering)
                 {
-                    this.textCtx.strokeText(this.raytracer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
-                    this.textCtx.fillText(this.raytracer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
+                    this.textCtx.strokeText(this.renderer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
+                    this.textCtx.fillText(this.renderer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
                 }
                 else
                 {
@@ -590,7 +586,7 @@ Fibre.prototype._resize = function(width, height)
     this.camera.updateProjectionMatrix();
     this.camControls.update();
 
-    this.raytracer.resize(width, height);
+    this.renderer.resize(width, height);
 }
 
 Fibre.prototype.resize = function()
@@ -701,7 +697,7 @@ Fibre.prototype.move_corner = function(u, v)
     // Expand the bounds to accommodate the new corner
     this.bounds.expandByPoint(cnew);
 
-    this.raytracer.resetBounds();
+    this.renderer.resetBounds();
     this.reset(true);
 }
 
@@ -735,7 +731,7 @@ Fibre.prototype.move_center = function(u, v)
     this.bounds.max.add(cnew); 
     this.bounds.min.add(cnew); 
 
-    this.raytracer.resetBounds();
+    this.renderer.resetBounds();
     this.reset(true);
 }
 
@@ -999,7 +995,7 @@ Fibre.prototype.toggleRecord = function(command)
 
         if (command=='RECORD PERIOD')
         {
-            this.gif_timer_max_duration = 8.0*Math.PI * 1.0e3/Math.max(1.0e-6, this.raytracer.dash_speed);
+            this.gif_timer_max_duration = 8.0*Math.PI * 1.0e3/Math.max(1.0e-6, this.renderer.dash_speed);
         }
         else
         {
