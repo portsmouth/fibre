@@ -21,7 +21,7 @@
         let _gl;
         try 
         {
-            _gl = this.canvas.getContext("webgl2", {preserveDrawingBuffer: true});
+            _gl = this.canvas.getContext("webgl2", {preserveDrawingBuffer: true, antialias: true});
         } catch (e) {
             this.fail(e.message + ". This can't run in your browser.");
         }

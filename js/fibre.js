@@ -47,7 +47,13 @@ var Fibre = function(editor, error_editor)
     this.camControls = new THREE.OrbitControls(this.camera, this.container);
     this.camControls.zoomSpeed = 2.0;
     this.camControls.flySpeed = 0.01;
-    this.camControls.addEventListener('change', camChanged);
+    this.disable_reset = false;
+    this.camControls.addEventListener('change', function() {
+                                                            if (fibre.disable_reset) return;
+                                                            var no_recompile = true;
+                                                            fibre.reset(no_recompile);
+                                                        });
+
     this.camControls.keyPanSpeed = 100.0;
 
     this.camControls.saveState = function () {
@@ -73,10 +79,9 @@ var Fibre = function(editor, error_editor)
 
     // Setup codemirror events:
     let renderer = this.renderer;
-    let ME = this;
     this.editor.on("change", function(cm, n) {
-        ME.code = cm.getValue();
-        ME.reset();
+        fibre.code = cm.getValue();
+        fibre.reset();
     });
     this.editing = false;
 
@@ -107,6 +112,8 @@ var Fibre = function(editor, error_editor)
     this.resize();
 
     this.initialized = true;
+    this.manip_enabled = true;
+    this.render_dirty = true;
 }
 
 /**
@@ -318,10 +325,11 @@ Fibre.prototype.load_state = function(state)
     this.editor.setValue(state.E.code);
 
     this.renderer.settings = Object.assign(this.renderer.settings, state.R);
-
+    
     this.camControls.update();
     this.gui.refresh();
     this.reset();
+    this.renderer.initStates();
 }
 
 Fibre.prototype.link_error = function(program_info, error_log)
@@ -524,8 +532,13 @@ Fibre.prototype.render = function()
     if (!this.initialized || this.terminated) return;
     this.rendering = true;
 
-    if (!this.gif_rendering)
+    if (this.render_dirty && !this.gif_rendering || this.renderer.settings.dashes)
+    {
+        gl.viewport(0, 0, this.width, this.height);
+        gl.depthMask(true);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         this.renderer.render();
+    }
 
     // Update HUD text canvas
     if (this.textCtx)
@@ -545,7 +558,6 @@ Fibre.prototype.render = function()
             let linkWidth = this.textCtx.measureText('Fibre vX.X.X').width;
             this.textCtx.strokeText('Fibre v'+ver[0]+'.'+ver[1]+'.'+ver[2], this.textCtx.canvas.width - linkWidth - 14, this.textCtx.canvas.height-20);
             this.textCtx.fillText('Fibre v'+ver[0]+'.'+ver[1]+'.'+ver[2], this.textCtx.canvas.width - linkWidth - 14, this.textCtx.canvas.height-20);
-            
             {
                 this.textCtx.fillStyle = "#ffaa22";
                 if (!this.gif_rendering)
@@ -737,34 +749,43 @@ Fibre.prototype.move_center = function(u, v)
 
 Fibre.prototype.onDocumentMouseMove = function(event)
 {
+    this.render_dirty = true;
+    
     let u = event.clientX/window.innerWidth;
     let v = event.clientY/window.innerHeight;
 
     // check not within editor region
-    if (fibre.editing) 
+    var cmEl = document.querySelector('.CodeMirror');
+    var edRect = cmEl.getBoundingClientRect();
+    if (event.clientX >= edRect.left && event.clientX <= edRect.right &&
+        event.clientY >= edRect.top  && event.clientY <= edRect.bottom) 
     {
         if      (this.cornerDragging != null) this.move_corner(u, v);
         else if (this.centerDragging != null) this.move_center(u, v);
 
         this.cornerDragging = null;
         this.centerDragging = null;
+        this.disable_reset = true;
         this.camControls.reset();
         this.camControls.update();
-
+        this.disable_reset = false;
         this.camControls.enabled = false;
         return;
     }
 
-    if (!this.cornerDragging && !this.centerDragging)
-        this.camControls.enabled = true;
-
-    if      (this.cornerDragging != null) this.move_corner(u, v);
-    else if (this.centerDragging != null) this.move_center(u, v);
-
-    // Check for bounds interaction
-    else
+    if (this.manip_enabled)
     {
-        this.boundsHit = this.boundsRaycast(u, v);
+        if (!this.cornerDragging && !this.centerDragging)
+            this.camControls.enabled = true;
+
+        if      (this.cornerDragging != null) this.move_corner(u, v);
+        else if (this.centerDragging != null) this.move_center(u, v);
+
+        // Check for bounds interaction
+        else
+        {
+            this.boundsHit = this.boundsRaycast(u, v);
+        }
     }
 
     // Check whether user is trying to click the Fibre home link, or user link
@@ -798,27 +819,27 @@ Fibre.prototype.onDocumentMouseDown = function(event)
 {
     if (!this.camControls.enabled) return;
 
-    let boundsHit = this.boundsHit;
-    if (boundsHit && boundsHit.hit)
+    if (this.manip_enabled)
     {
-        if (boundsHit.type == 'corner')
+        let boundsHit = this.boundsHit;
+        if (boundsHit && boundsHit.hit)
         {
-            this.camControls.enabled = false;
-            let u = event.clientX/window.innerWidth;
-            let v = event.clientY/window.innerHeight;
-
-            this.cornerDragging = {u: u, v: v, corner_index:boundsHit.index, axis_index:boundsHit.axis};
-            this.camControls.saveState();
-        }
-
-        if (boundsHit.type == 'center')
-        {
-            this.camControls.enabled = false;
-            let u = event.clientX/window.innerWidth;
-            let v = event.clientY/window.innerHeight;
-
-            this.centerDragging = {u: u, v: v};
-            this.camControls.saveState();
+            if (boundsHit.type == 'corner')
+            {
+                this.camControls.enabled = false;
+                let u = event.clientX/window.innerWidth;
+                let v = event.clientY/window.innerHeight;
+                this.cornerDragging = {u: u, v: v, corner_index:boundsHit.index, axis_index:boundsHit.axis};
+                this.camControls.saveState();
+            }
+            if (boundsHit.type == 'center')
+            {
+                this.camControls.enabled = false;
+                let u = event.clientX/window.innerWidth;
+                let v = event.clientY/window.innerHeight;
+                this.centerDragging = {u: u, v: v};
+                this.camControls.saveState();
+            }
         }
     }
 
@@ -834,14 +855,12 @@ Fibre.prototype.onDocumentMouseUp = function(event)
         this.camControls.enabled = true;
         this.camControls.reset();
     }
-
     if (this.centerDragging != null)
     {
         this.centerDragging = null;
         this.camControls.enabled = true;
         this.camControls.reset();
     }
-
     this.camControls.update();
     event.preventDefault();
 }
@@ -956,15 +975,6 @@ Fibre.prototype.onkeydown = function(event)
             break;
         }
 	}
-}
-
-function camChanged()
-{
-    //if (!fibre.rendering)
-    {
-        var no_recompile = true;
-        fibre.reset(no_recompile);
-    }
 }
 
 

@@ -46,7 +46,7 @@ out vec4 outputColor;
 
 void main() 
 {
-    // Read normalized fluence and time delay (integrated along primary rays)
+    // Read normalized fluence and time
     vec4 image = float(invNpasses) * texture(Fluence, vTexCoord);
     vec3 fluence = image.rgb;
     vec3 emission = fluence ;
@@ -207,30 +207,54 @@ void main()
 'line-fragment-shader': `#version 300 es
 precision highp float;
 
-in vec4 vColor; // user color
+in vec3 vColor; // user color
 in vec3 T;      // tangent
 in vec3 D;      // local offset (from axis to surface)
 in float t;     // integration parameter 
 
 uniform vec3 V;
+uniform bool hairShader;
 uniform float specShine;
 uniform vec3 specColor;
 
 out vec4 outputColor;
 
 #define oos3 0.57735026919
-const vec3 L = vec3(0, 1, 0); //oos3, oos3, oos3);
+const vec3 L1 = vec3(oos3, oos3, oos3);
+const vec3 L2 = vec3(-oos3, -oos3, -oos3);
+const vec3 C1 = vec3(1.0, 0.95, 0.9);
+const vec3 C2 = vec3(1.0, 0.7, 0.5);
 
 void main()
 {
+    vec3 Tn = normalize(T);
     vec3 N = normalize(D);
-    float dotTL = dot(T, L);
-    float sinTL = sqrt(max(0.0, 1.0 - dotTL*dotTL));
-    float dotTE = dot(T, -V);
-    float sinTE = sqrt(max(0.0, 1.0 - dotTE*dotTE));
-    vec3 diffuse = vColor.rgb * sinTL * max(0.0, dot(L, N));                     // kajiya-kay diffuse
-    vec3 specular = specColor * pow(abs(-dotTL*dotTE + sinTL*sinTE), specShine); // kajiya-kay spec
-    outputColor.rgb = diffuse + specular;
+
+    if (hairShader)
+    {
+        float dotTL1 = dot(Tn, L1);
+        float sinTL1 = sqrt(max(0.0, 1.0 - dotTL1*dotTL1));
+        float dotTL2 = dot(Tn, L2);
+        float sinTL2 = sqrt(max(0.0, 1.0 - dotTL2*dotTL2));
+        float dotTE = dot(Tn, -V);
+        float sinTE = sqrt(max(0.0, 1.0 - dotTE*dotTE));
+        vec3 diffuse1 = vColor * C1 * sinTL1 * max(0.0, dot(L1, N));                    // kajiya-kay diffuse
+        vec3 diffuse2 = vColor * C2 * sinTL2 * max(0.0, dot(L2, N));                    
+        vec3 specular1 = specColor * pow(abs(-dotTL1*dotTE + sinTL1*sinTE), specShine); 
+        vec3 specular2 = specColor * pow(abs(-dotTL2*dotTE + sinTL2*sinTE), specShine); // kajiya-kay spec
+        outputColor.rgb = diffuse1 + specular1 + diffuse2 + specular2;
+    }
+    else
+    {
+        vec3 diffuse1 = vColor * C1 * max(0.0, dot(L1, N));
+        vec3 diffuse2 = vColor * C2 * max(0.0, dot(L2, N));
+        vec3 H1 = normalize(L1 + V);
+        vec3 H2 = normalize(L2 + V);
+        vec3 specular1 = specColor * pow(max(0.0, dot(H1, N)), specShine);
+        vec3 specular2 = specColor * pow(max(0.0, dot(H2, N)), specShine);
+        outputColor.rgb = diffuse1 + specular1 + diffuse2 + specular2;
+    }
+
     outputColor.w = t;
 }
 `,
@@ -242,14 +266,16 @@ uniform sampler2D PosDataA;
 uniform sampler2D PosDataB;
 uniform sampler2D RgbDataA;
 uniform sampler2D RgbDataB;
-uniform sampler2D OffsetData;
+uniform sampler2D EdgDataA;
+uniform sampler2D EdgDataB;
+uniform sampler2D OffData;
 uniform mat4 u_projectionMatrix;
 uniform mat4 u_modelViewMatrix;
 uniform bool tubeSpread;
 
 in vec3 TexCoord;
 
-out vec4 vColor;  // user color
+out vec3 vColor;  // user color
 out vec3 T;       // tangent
 out vec3 D;       // local offset (from axis to surface)
 out float t;      // integration parameter 
@@ -260,22 +286,24 @@ void main()
     // (i.e. the geometry defined by this vertex shader is stored in textures)
     vec4 posA   = texture(PosDataA, TexCoord.xy);
     vec4 posB   = texture(PosDataB, TexCoord.xy);
-    vec4 colorA = texture(RgbDataA, TexCoord.xy);
-    vec4 colorB = texture(RgbDataB, TexCoord.xy);
-    vec4 offset = texture(OffsetData, TexCoord.xy);
+    vec3 colorA = texture(RgbDataA, TexCoord.xy).xyz;
+    vec3 colorB = texture(RgbDataB, TexCoord.xy).xyz;
+    vec3 edgA   = texture(EdgDataA, TexCoord.xy).xyz;
+    vec3 edgB   = texture(EdgDataB, TexCoord.xy).xyz;
+    vec3 offset = texture(OffData,  TexCoord.xy).xyz;
 
     // Line segment vertex position (either posA or posB)
-    vec4 pos = mix(posA, posB, TexCoord.z);
+    vec3 pos = mix(posA.xyz, posB.xyz, TexCoord.z);
     if (!tubeSpread)
     {
-        pos.xyz += offset.xyz;
+        pos += offset;
     }
 
-    gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(pos.xyz, 1.0);
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(pos, 1.0);
     vColor = mix(colorA, colorB, TexCoord.z);
     t = mix(posA.w, posB.w, TexCoord.z);
-    T = normalize(posB.xyz - posA.xyz);
-    D = offset.xyz;
+    T = mix(edgA, edgB, TexCoord.z);
+    D = offset;
 
 
 }
@@ -351,10 +379,10 @@ void main()
 precision highp float;
 
 uniform sampler2D PosData;
-uniform sampler2D RgbData;
 uniform sampler2D RngData;
 
 uniform bool clipToBounds;
+uniform bool integrateForward;
 uniform vec3 boundsMin;
 uniform vec3 boundsMax;
 uniform float timestep;
@@ -362,22 +390,11 @@ uniform float timestep;
 layout(location = 0) out vec4 gbuf_pos;
 layout(location = 1) out vec4 gbuf_rgb;
 layout(location = 2) out vec4 gbuf_rnd;
+layout(location = 3) out vec4 gbuf_edg;
 
 in vec2 vTexCoord;
 
-
-//////////////////////////////////////////////////////////////
-// Dynamically injected code
-//////////////////////////////////////////////////////////////
-
-USER_CODE
-
-
-//////////////////////////////////////////////////////////////
-// Integrate vector field
-//////////////////////////////////////////////////////////////
-
-
+#define FLT_EPSILON 1.19209290E-07F
 #define sort2(a,b) { vec3 tmp=min(a,b); b=a+b-tmp; a=tmp; }
 
 bool boxHit( in vec3 rayPos, in vec3 rayDir, in vec3 bbMin, in vec3 bbMax,
@@ -393,43 +410,52 @@ bool boxHit( in vec3 rayPos, in vec3 rayDir, in vec3 bbMin, in vec3 bbMax,
     return hit;
 }
 
+//////////////////////////////////////////////////////////////
+// Dynamically injected code
+//////////////////////////////////////////////////////////////
+
+USER_CODE
+
+
+//////////////////////////////////////////////////////////////
+// Integrate vector field
+//////////////////////////////////////////////////////////////
+
 void main()
 {
-    vec4 X        = texture(PosData, vTexCoord);
-    vec4 rgbw     = texture(RgbData, vTexCoord);
-    vec4 rnd      = texture(RngData, vTexCoord);
-    
+    vec4 X = texture(PosData, vTexCoord);
+    vec4 rnd = texture(RngData, vTexCoord);
     float t = X.w;
+    vec3 dX = vec3(0.0);
+
+    float dt = timestep;
+    if (!integrateForward) dt *= -1.f;
+
     if (!clipToBounds || t>=0.0)
     {
-        vec3 x = X.xyz;
-        
         // Integrate ODE with 4th order Runge-Kutta method
-        vec3 k1 = timestep * velocity(x,        t             );
-        vec3 k2 = timestep * velocity(x+0.5*k1, t+0.5*timestep);
-        vec3 k3 = timestep * velocity(x+0.5*k2, t+0.5*timestep);
-        vec3 k4 = timestep * velocity(x+    k3, t+    timestep);
-
-        vec3 dX = (k1 + 2.0*k2 + 2.0*k3 + k4)/6.0;
-        X.w  += timestep;
-
-        if (clipToBounds)
+        vec3 x = X.xyz;
+        vec3 k1 = dt * velocity(x,        t       );
+        vec3 k2 = dt * velocity(x+0.5*k1, t+0.5*dt);
+        vec3 k3 = dt * velocity(x+0.5*k2, t+0.5*dt);
+        vec3 k4 = dt * velocity(x+    k3, t+    dt);
+        dX = (k1 + 2.0*k2 + 2.0*k3 + k4)/6.0;
+        X.w  += dt;
+        float dx = length(dX);
+        if (clipToBounds && dx>0.0)
         {
             // Clip ray to land on box, if it leaves
-            float dx = length(dX);
-            if (dx > 0.0)
-            {
-                vec3 dir = dX/dx;
-                float t0, t1;
-                boxHit(X.xyz, dir, boundsMin, boundsMax, t0, t1);
-                float l = min(t1, dx);
-                X.xyz += l*dir;
-            }
+            vec3 dir = dX/dx;
+            float t0, t1;
+            boxHit(X.xyz, dir, boundsMin, boundsMax, t0, t1);
+            float l = min(t1, dx);
+            X.xyz += l*dir;
         }
         else
         {
             X.xyz += dX;
         }
+        dX /= max(dx, FLT_EPSILON);
     }
     
     vec3 c = color(X.xyz, X.w);
@@ -437,6 +463,7 @@ void main()
     gbuf_pos = X;
     gbuf_rgb = vec4(c, 1.0);
     gbuf_rnd = rnd;
+    gbuf_edg = vec4(dX, 1.0);
 }
 `,
 

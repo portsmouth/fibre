@@ -87,29 +87,34 @@ GUI.prototype.createguiSettings = function()
 
     // Integrator folder
     this.integratorFolder = this.gui.addFolder('Integrator');
-    this.integratorFolder.add(renderer.settings, 'maxTimeSteps', 4, 4096).onChange( function(value) { renderer.settings.maxTimeSteps = Math.floor(value); renderer.reset(true); } );
-    this.integratorFolder.add(renderer.settings, 'integrationTime', 0.1, 1000.0).onChange( function(value) { renderer.reset(true); } );
-    this.integratorFolder.add(renderer.settings, 'gridSpace', 0.0, 1.0).onChange( function(value) { renderer.reset(true); } );
-    this.integratorFolder.add(renderer.settings, 'xmin').onChange( function(value) { if (fibre.get_xmax() < value) renderer.settings.xmin = fibre.get_xmax(); else fibre.set_xmin(value); });
-    this.integratorFolder.add(renderer.settings, 'xmax').onChange( function(value) { if (fibre.get_xmin() > value) renderer.settings.xmax = fibre.get_xmin(); else fibre.set_xmax(value); });
-    this.integratorFolder.add(renderer.settings, 'ymin').onChange( function(value) { if (fibre.get_ymax() < value) renderer.settings.ymin = fibre.get_ymax(); else fibre.set_ymin(value); });  
-    this.integratorFolder.add(renderer.settings, 'ymax').onChange( function(value) { if (fibre.get_ymin() > value) renderer.settings.ymax = fibre.get_ymin(); else fibre.set_ymax(value); });
-    this.integratorFolder.add(renderer.settings, 'zmin').onChange( function(value) { if (fibre.get_zmax() < value) renderer.settings.zmin = fibre.get_zmax(); else fibre.set_zmin(value); });
-    this.integratorFolder.add(renderer.settings, 'zmax').onChange( function(value) { if (fibre.get_zmin() > value) renderer.settings.zmax = fibre.get_zmin(); else fibre.set_zmax(value); });
+    this.integratorFolder.add(renderer.settings, 'maxTimeSteps', 4, 4096).onChange( function(value) { fibre.manip_enabled = false; renderer.settings.maxTimeSteps = Math.floor(value); renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'integrationTime', 0.1, 1000.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'integrateForward').onChange( function(value) { renderer.reset(true); } );
+    this.integratorFolder.add(renderer.settings, 'gridSpace', 0.0, 1.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'tubeWidth', 0.0, 0.1).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'tubeSpread').onChange( function(value) { renderer.reset(true); } )
+    
+    this.integratorFolder.add(renderer.settings, 'xmin').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_xmax() < value) renderer.settings.xmin = fibre.get_xmax(); else fibre.set_xmin(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'xmax').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_xmin() > value) renderer.settings.xmax = fibre.get_xmin(); else fibre.set_xmax(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'ymin').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_ymax() < value) renderer.settings.ymin = fibre.get_ymax(); else fibre.set_ymin(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'ymax').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_ymin() > value) renderer.settings.ymax = fibre.get_ymin(); else fibre.set_ymax(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'zmin').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_zmax() < value) renderer.settings.zmin = fibre.get_zmax(); else fibre.set_zmin(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'zmax').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_zmin() > value) renderer.settings.zmax = fibre.get_zmin(); else fibre.set_zmax(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'clipToBounds').onChange( function(value) { renderer.reset(true); } );
     this.integratorFolder.add(renderer.settings, 'showBounds').onChange( function(value) { renderer.reset(true); } );
 
     // Renderer folder
     this.rendererFolder = this.gui.addFolder('Renderer');
-    this.rendererFolder.add(renderer.settings, 'exposure', -10.0, 10.0);
-    this.rendererFolder.add(renderer.settings, 'gamma', 0.0, 3.0);
-    this.rendererFolder.add(renderer.settings, 'subtractive_color').onChange( function(value) { renderer.reset(true); } );
-
+    this.rendererFolder.add(renderer.settings, 'exposure', -10.0, 10.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.rendererFolder.add(renderer.settings, 'gamma', 0.0, 3.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.rendererFolder.add(renderer.settings, 'subtractiveColor').onChange( function(value) { renderer.reset(true); } );
+    
     this.guiSettings.bgColor = [renderer.settings.bgColor[0]*255.0, 
                                 renderer.settings.bgColor[1]*255.0, 
                                 renderer.settings.bgColor[2]*255.0];
     this.rendererFolder.addColor(this.guiSettings, 'bgColor').onChange( function(value) 
         { 
+            fibre.manip_enabled = false;
             if (typeof value==='string' || value instanceof String)
             {
                 var color = hexToRgb(value);
@@ -124,16 +129,18 @@ GUI.prototype.createguiSettings = function()
                 renderer.settings.bgColor[2] = value[2] / 255.0;
             }
             renderer.reset(true);
-        });
+        }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
 
-    this.rendererFolder.add(renderer.settings, 'tubeWidth', 0.0, 0.1).onChange( function(value) { renderer.reset(true); } );
-    this.rendererFolder.add(renderer.settings, 'tubeSpread').onChange( function(value) { renderer.reset(true); } );
-    this.rendererFolder.add(renderer.settings, 'specShine', 0.0, 100.0).onChange( function(value) { renderer.reset(true); } );
+
+    
+    this.rendererFolder.add(renderer.settings, 'hairShader').onChange( function(value) { renderer.reset(true); } );
+    this.rendererFolder.add(renderer.settings, 'specShine', 0.0, 100.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.guiSettings.specColor = [renderer.settings.specColor[0]*255.0, 
                                   renderer.settings.specColor[1]*255.0, 
                                   renderer.settings.specColor[2]*255.0];
     this.rendererFolder.addColor(this.guiSettings, 'specColor').onChange( function(value) 
         { 
+            fibre.manip_enabled = false;
             if (typeof value==='string' || value instanceof String)
             {
                 var color = hexToRgb(value);
@@ -148,17 +155,17 @@ GUI.prototype.createguiSettings = function()
                 renderer.settings.specColor[2] = value[2] / 255.0;
             }
             renderer.reset(true);
-        });
+        }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.rendererFolder.add(renderer.settings, 'depthTest').onChange( function(value) { renderer.reset(true); } );
     this.rendererFolder.add(renderer.settings, 'dashes').onChange( function(value) { if (value) renderer.settings.depthTest = true; ME.sync(); renderer.reset(true); } );
-    this.rendererFolder.add(renderer.settings, 'dash_spacing', 0.0, 1.0);
-    this.rendererFolder.add(renderer.settings, 'dash_size', 0.0, 1.0);
-    this.rendererFolder.add(renderer.settings, 'dash_speed', 0.0, 1000.0);
+    this.rendererFolder.add(renderer.settings, 'dash_spacing', 0.0, 1.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.rendererFolder.add(renderer.settings, 'dash_size', 0.0, 1.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.rendererFolder.add(renderer.settings, 'dash_speed', 0.0, 1000.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     
     // Advanced folder
     this.advancedFolder = this.gui.addFolder('Advanced');
-    this.advancedFolder.add(renderer.settings, 'rayBatch', 4, 1024).onChange( function(value) { renderer.rayBatch = Math.floor(value); renderer.initStates(); renderer.reset(true); } );
-    this.advancedFolder.add(renderer.settings, 'maxIterations', 10, 1000).onChange( function(value) { renderer.reset(true); } );
+    this.advancedFolder.add(renderer.settings, 'rayBatch', 4, 1024).onChange( function(value) { fibre.manip_enabled = false; renderer.rayBatch = Math.floor(value); renderer.initStates(); renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.advancedFolder.add(renderer.settings, 'maxIterations', 10, 1000).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
 
     let button_record = { record:function(e) { 
         let button = ME._toggle_record_button;
@@ -215,8 +222,8 @@ GUI.prototype.addSlider = function(parameters, param, folder=undefined)
     var item;
     if (step==null || step==undefined) { item = _f.add(parameters, name, min, max, step); }
     else                               { item = _f.add(parameters, name, min, max);       }
-    item.onChange( function(value) { fibre.reset(no_recompile); fibre.camera.enabled = false; } );
-    item.onFinishChange( function(value) { fibre.camera.enabled = true; } );
+    item.onChange( function(value) { fibre.reset(no_recompile); fibre.manip_enabled = false; } );
+    item.onFinishChange( function(value) { fibre.manip_enabled = true; } );
     return item;
 }
 

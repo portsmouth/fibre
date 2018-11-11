@@ -17,7 +17,7 @@ out vec4 outputColor;
 
 void main() 
 {
-    // Read normalized fluence and time delay (integrated along primary rays)
+    // Read normalized fluence and time
     vec4 image = float(invNpasses) * texture(Fluence, vTexCoord);
     vec3 fluence = image.rgb;
     vec3 emission = fluence ;
