@@ -658,16 +658,16 @@ Fibre.prototype.move_corner = function(u, v)
     // get dragged corner current position
     let corner_index = this.cornerDragging.corner_index;
     let axis = this.cornerDragging.axis_index;
+    let c = this.cornerDragging.c;
 
-    let bounds = this.getBounds();
-    boundsMin = bounds.min;
-    boundsMax = bounds.max;
-    let o = [boundsMin.x, boundsMin.y, boundsMin.z];
-    let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
-    let x =     corner_index &1;
-    let y = (corner_index>>1)&1; 
-    let z = (corner_index>>2)&1;
-    let c = new THREE.Vector3(o[0] + x*e[0], o[1] + y*e[1], o[2] + z*e[2]);
+    // get camera ray at orig mouse location
+    let dir_orig = new THREE.Vector3();
+    dir_orig.set( this.cornerDragging.u*2 - 1,
+                 -this.cornerDragging.v*2 + 1,
+                0.5 );
+    dir_orig.unproject(this.camera);
+    dir_orig.sub(this.camera.position).normalize();
+    let ray_orig = {origin:this.camera.position, direction: dir_orig};
 
     // get camera ray at current mouse location
     let dir = new THREE.Vector3();
@@ -678,13 +678,25 @@ Fibre.prototype.move_corner = function(u, v)
     dir.sub(this.camera.position).normalize();
     let ray = {origin:this.camera.position, direction: dir};
 
+    // intersect orig ray with a plane passing through the current corner, orthog. to ray
+    let oc = ray_orig.origin.clone();
+    oc.sub(c);
+    let t_orig = -oc.dot(ray_orig.direction);
+    let porig = ray.origin.clone();
+    porig.addScaledVector(ray_orig.direction, t_orig);
+
     // intersect ray with a plane passing through the current corner, orthog. to ray
     // to compute the new corner position
-    let oc = ray.origin.clone();
+    oc = ray.origin.clone();
     oc.sub(c);
     let t = -oc.dot(ray.direction);
-    let cnew = ray.origin.clone();
-    cnew.addScaledVector(ray.direction, t);
+    let pnew = ray.origin.clone();
+    pnew.addScaledVector(ray.direction, t);
+    
+    // Add corner shift to the original corner
+    pnew.sub(porig);
+    let cnew = c.clone();
+    cnew.add(pnew);
 
     if      (axis==0) { cnew.y = c.y; cnew.z = c.z; }
     else if (axis==1) { cnew.x = c.x; cnew.z = c.z; }
@@ -715,12 +727,16 @@ Fibre.prototype.move_corner = function(u, v)
 
 Fibre.prototype.move_center = function(u, v)
 {
-    let bounds = this.getBounds();
-    boundsMin = bounds.min;
-    boundsMax = bounds.max;
-    let o = [boundsMin.x, boundsMin.y, boundsMin.z];
-    let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
-    let c = new THREE.Vector3(o[0] + 0.5*e[0], o[1] + 0.5*e[1], o[2] + 0.5*e[2]);
+    let c = this.centerDragging.c;
+
+    // get camera ray at orig mouse location
+    let dir_orig = new THREE.Vector3();
+    dir_orig.set( this.centerDragging.u*2 - 1,
+                 -this.centerDragging.v*2 + 1,
+                0.5 );
+    dir_orig.unproject(this.camera);
+    dir_orig.sub(this.camera.position).normalize();
+    let ray_orig = {origin:this.camera.position, direction: dir_orig};
 
     // get camera ray at current mouse location
     let dir = new THREE.Vector3();
@@ -731,17 +747,29 @@ Fibre.prototype.move_center = function(u, v)
     dir.sub(this.camera.position).normalize();
     let ray = {origin:this.camera.position, direction: dir};
 
-        // intersect ray with a plane passing through the current center, orthog. to ray
-    // to compute the new center position
-    let oc = ray.origin.clone();
+    // intersect orig ray with a plane passing through the current center, orthog. to ray
+    let oc = ray_orig.origin.clone();
+    oc.sub(c);
+    let t_orig = -oc.dot(ray_orig.direction);
+    let porig = ray.origin.clone();
+    porig.addScaledVector(ray_orig.direction, t_orig);
+
+    // intersect ray with a plane passing through the current center, orthog. to ray
+    // to compute the new corner position
+    oc = ray.origin.clone();
     oc.sub(c);
     let t = -oc.dot(ray.direction);
-    let cnew = ray.origin.clone();
-    cnew.addScaledVector(ray.direction, t);
-    cnew.sub(c);
+    let pnew = ray.origin.clone();
+    pnew.addScaledVector(ray.direction, t);
 
-    this.bounds.max.add(cnew); 
-    this.bounds.min.add(cnew); 
+    // Add center shift to the original center
+    pnew.sub(porig);
+
+    let bounds_orig = this.centerDragging.bounds;
+    this.bounds.min = bounds_orig.min.clone();
+    this.bounds.min.add(pnew);
+    this.bounds.max = bounds_orig.max.clone();
+    this.bounds.max.add(pnew);
 
     this.renderer.resetBounds();
     this.reset(true);
@@ -750,7 +778,7 @@ Fibre.prototype.move_center = function(u, v)
 Fibre.prototype.onDocumentMouseMove = function(event)
 {
     this.render_dirty = true;
-    
+
     let u = event.clientX/window.innerWidth;
     let v = event.clientY/window.innerHeight;
 
@@ -829,7 +857,19 @@ Fibre.prototype.onDocumentMouseDown = function(event)
                 this.camControls.enabled = false;
                 let u = event.clientX/window.innerWidth;
                 let v = event.clientY/window.innerHeight;
-                this.cornerDragging = {u: u, v: v, corner_index:boundsHit.index, axis_index:boundsHit.axis};
+                let corner_index = boundsHit.index;
+
+                let bounds = this.getBounds();
+                boundsMin = bounds.min;
+                boundsMax = bounds.max;
+                let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+                let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+                let x =     corner_index &1;
+                let y = (corner_index>>1)&1; 
+                let z = (corner_index>>2)&1;
+                let corner = new THREE.Vector3(o[0] + x*e[0], o[1] + y*e[1], o[2] + z*e[2]);
+
+                this.cornerDragging = {c:corner, u: u, v: v, corner_index:boundsHit.index, axis_index:boundsHit.axis};
                 this.camControls.saveState();
             }
             if (boundsHit.type == 'center')
@@ -837,7 +877,15 @@ Fibre.prototype.onDocumentMouseDown = function(event)
                 this.camControls.enabled = false;
                 let u = event.clientX/window.innerWidth;
                 let v = event.clientY/window.innerHeight;
-                this.centerDragging = {u: u, v: v};
+
+                let bounds = this.getBounds();
+                boundsMin = bounds.min;
+                boundsMax = bounds.max;
+                let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+                let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+                let center = new THREE.Vector3(o[0] + 0.5*e[0], o[1] + 0.5*e[1], o[2] + 0.5*e[2]);
+                
+                this.centerDragging = {c:center, u: u, v: v, bounds: bounds.clone()};
                 this.camControls.saveState();
             }
         }
