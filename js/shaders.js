@@ -31,8 +31,6 @@ precision highp float;
 
 uniform sampler2D Fluence;
 uniform float invNpasses;
-uniform float exposure;
-uniform float invGamma;
 uniform float time;
 uniform bool dashes;
 uniform float dash_spacing;
@@ -41,27 +39,60 @@ uniform float dash_speed;
 uniform vec3 bg_color;
 uniform bool subtractive_color;
 
+uniform float exposure;
+uniform float invGamma;
+uniform float contrast;
+uniform float saturation;
+
 in vec2 vTexCoord;
 out vec4 outputColor;
+
+float toneMap(float L)
+{
+  return L / (1.0 + L);
+}
 
 void main() 
 {
     // Read normalized fluence and time
     vec4 image = float(invNpasses) * texture(Fluence, vTexCoord);
-    vec3 fluence = image.rgb;
-    vec3 emission = fluence ;
-
-    // Apply exposure 
-    float gain = pow(2.0, exposure);
-    float r = gain*emission.x; 
-    float g = gain*emission.y; 
-    float b = gain*emission.z;
-
-    // Reinhard tonemap
-    vec3 C = vec3(r/(1.0+r), g/(1.0+g), b/(1.0+b));
+    vec3 RGB = image.rgb;
 
     // Apply gamma
-    C = pow(C, vec3(invGamma));
+    RGB = pow(RGB, vec3(invGamma));
+
+    float gain = pow(2.0, exposure);
+    float r = gain*RGB.x; 
+    float g = gain*RGB.y; 
+    float b = gain*RGB.z;
+
+    // apply tonemapping
+    RGB *= pow(2.0, exposure);
+    float R = RGB.r;
+    float G = RGB.g;
+    float B = RGB.b;
+    R = toneMap(R);
+    G = toneMap(G);
+    B = toneMap(B);
+
+    // apply saturation
+    float mean = (R + G + B)/3.0;
+    float dR = R - mean;
+    float dG = G - mean;
+    float dB = B - mean;
+    R = mean + sign(dR)*pow(abs(dR), 1.0/saturation);
+    G = mean + sign(dG)*pow(abs(dG), 1.0/saturation);
+    B = mean + sign(dB)*pow(abs(dB), 1.0/saturation);
+
+    // apply contrast
+    dR = R - 0.5;
+    dG = G - 0.5;
+    dB = B - 0.5;
+    R = 0.5 + sign(dR)*pow(abs(dR), 1.0/contrast);
+    G = 0.5 + sign(dG)*pow(abs(dG), 1.0/contrast);
+    B = 0.5 + sign(dB)*pow(abs(dB), 1.0/contrast);
+
+    vec3 C = vec3(R,G,B);
 
     // Optionally render moving dashes
     float modulation = 1.0;
@@ -228,7 +259,9 @@ const vec3 C2 = vec3(1.0, 0.7, 0.5);
 void main()
 {
     vec3 Tn = normalize(T);
-    vec3 N = normalize(D);
+
+    float Dl = length(D);
+    vec3 N = Dl > 0.0 ? D/Dl : vec3(1.0);
 
     if (hairShader)
     {
