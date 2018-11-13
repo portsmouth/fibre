@@ -107,6 +107,8 @@ GUI.prototype.createguiSettings = function()
     this.rendererFolder = this.gui.addFolder('Renderer');
     this.rendererFolder.add(renderer.settings, 'exposure', -10.0, 10.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.rendererFolder.add(renderer.settings, 'gamma', 0.0, 3.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.rendererFolder.add(renderer.settings, 'contrast', 0.0, 3.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.rendererFolder.add(renderer.settings, 'saturation', 0.0, 3.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.rendererFolder.add(renderer.settings, 'subtractiveColor').onChange( function(value) { renderer.reset(true); } );
     
     this.guiSettings.bgColor = [renderer.settings.bgColor[0]*255.0, 

@@ -87,6 +87,8 @@ var Renderer = function()
     this.settings.showBounds = true;
     this.settings.exposure = -1.0;
     this.settings.gamma = 2.2;
+    this.settings.contrast = 1.0;
+    this.settings.saturation = 1.0;
     this.settings.subtractiveColor = false;
     this.settings.bgColor = [0.0, 0.0, 0.0];
     this.settings.hairShader = true;
@@ -402,6 +404,8 @@ Renderer.prototype.composite = function()
 
     this.compProgram.uniformF("exposure", this.settings.exposure);
     this.compProgram.uniformF("invGamma", 1.0/this.settings.gamma);
+    this.compProgram.uniformF("contrast", this.settings.contrast);
+    this.compProgram.uniformF("saturation", this.settings.saturation);
     this.compProgram.uniformI("dashes", this.settings.dashes);
     this.compProgram.uniformF("dash_spacing", scale*this.settings.gridSpace*this.settings.dash_spacing);
     this.compProgram.uniformF("dash_speed", this.settings.dash_speed);
