@@ -321,6 +321,9 @@ Fibre.prototype.load_state = function(state)
     this.camera.far = far;
     this.camControls.target.copy(new THREE.Vector3(T[0], T[1], T[2]));
     this.camControls.saveState();
+
+    this.initial_camera_position = this.camera.position.clone();
+    this.initial_camera_target = this.camControls.target.clone();
     
     this.editor.setValue(state.E.code);
 
@@ -930,6 +933,28 @@ Fibre.prototype.onkeydown = function(event)
             else console.assert(false);
             break;
 
+        case 67: // C key: center cam on current bounds
+            if (!this.camControls.enabled || fibre.editing) break;
+            let bounds = this.getBounds();
+            boundsMin = bounds.min;
+            boundsMax = bounds.max;
+            let scale = Math.max(boundsMax.x-boundsMin.x,
+                                boundsMax.y-boundsMin.y,
+                                boundsMax.z-boundsMin.z);
+            let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+            let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+            let center = new THREE.Vector3(o[0] + 0.5*e[0], o[1] + 0.5*e[1], o[2] + 0.5*e[2]);
+            let p = this.camera.position;
+            let d = center.clone(); d.sub(p);
+            d.normalize();
+            let pnew = center.clone();
+            pnew.addScaledVector(d, -3.0*scale);
+            this.camera.position.copy(pnew);
+            this.camControls.target.copy(center);
+            this.camControls.update();
+            this.reset(true);
+            break;
+            
         case 70: // F key: reset cam  
             if (!this.camControls.enabled || fibre.editing) break;
             this.camera.position.copy(this.initial_camera_position);
