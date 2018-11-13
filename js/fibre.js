@@ -105,7 +105,7 @@ var Fibre = function(editor, error_editor)
     // Attempt to load from current URL
     if (!this.load_url(window.location.href))
     {
-        this.presets.load_preset('lorenz');
+        this.presets.load_preset('Rucklidge');
     }
     
     // Do initial resize:
@@ -954,7 +954,7 @@ Fibre.prototype.onkeydown = function(event)
             this.camControls.update();
             this.reset(true);
             break;
-            
+
         case 70: // F key: reset cam  
             if (!this.camControls.enabled || fibre.editing) break;
             this.camera.position.copy(this.initial_camera_position);
