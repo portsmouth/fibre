@@ -21,7 +21,9 @@ const vec3 C2 = vec3(1.0, 0.7, 0.5);
 void main()
 {
     vec3 Tn = normalize(T);
-    vec3 N = normalize(D);
+
+    float Dl = length(D);
+    vec3 N = Dl > 0.0 ? D/Dl : vec3(1.0);
 
     if (hairShader)
     {
