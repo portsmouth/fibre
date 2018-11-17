@@ -7,6 +7,8 @@ width: 100%;
 background-size: 100%;">
 
 <script src='./js/thirdparty/jquery-3.3.1.min.js'></script>
+<script src='./js/thirdparty/jquery-ui.min.js'></script>
+<script src='./js/thirdparty/jquery-ui.css.js'></script>
 <script src='./js/thirdparty/codemirror/codemirror.js'></script>
 <script src='./js/thirdparty/codemirror/codemirror.css.js'></script>
 <script src='./js/thirdparty/codemirror/clike.js'></script>
@@ -36,93 +38,94 @@ position: relative;
 margin: 0px;
 padding: 0px;
 '>
+    <div id='gui' style='
+    position:absolute;
+    z-index:-2;
+    '></div>
 
- 
-<div id='gui' style='
-position:absolute;
-z-index:-2;
-'></div>
+    <button class='toggle-code-button-class' id='toggle-code-button' style='
+    position:absolute;
+    z-index:1;
+    border:none;
+    top: 0px;
+    display:inline-block;
+    margin-left:5px;
+    padding:8;
+    outline:0;
+    width: 10px;
+    height: 10px;
+    box-shadow:none!important;
+    background:none;
+    color: rgb(58, 227, 139);
+    font-size:24px;
+    '>&#9776</button>
+
+    <button class='share-button-class' id='share-button' style='
+    left: 40px;
+    position:absolute;
+    z-index:1;
+    border:none;
+    top: 3px;
+    display:inline-block;
+    margin-left:5px;
+    padding:8;
+    outline:0;
+    width: 10px;
+    height: 10px;
+    box-shadow:none!important;
+    background:none;
+    color: rgb(26, 161, 242);
+    font-size:22px;
+    '>@</button>
+
+    <style>
+    .toggle-code-button-class:hover,
+    .toggle-code-button-class:focus {
+        color: rgb(192, 225, 208)!important;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .share-button-class:hover,
+    .share-button-class:focus {
+        color: rgb(146, 202, 232)!important;
+        text-decoration: none;
+        cursor:rgb(107, 107, 210)
+    }
+
+    </style>
 
 
-<button class='toggle-code-button-class' id='toggle-code-button' style='
-position:absolute;
-z-index:1;
-border:none;
-top: 0px;
-display:inline-block;
-margin-left:5px;
-padding:8;
-outline:0;
-width: 10px;
-height: 10px;
-box-shadow:none!important;
-background:none;
-color: rgb(58, 227, 139);
-font-size:24px;
-'>&#9776</button>
+    <textarea id="textarea-code" name="textarea-code"> 
+    </textarea>
 
-<button class='share-button-class' id='share-button' style='
-left: 40px;
-position:absolute;
-z-index:1;
-border:none;
-top: 3px;
-display:inline-block;
-margin-left:5px;
-padding:8;
-outline:0;
-width: 10px;
-height: 10px;
-box-shadow:none!important;
-background:none;
-color: rgb(26, 161, 242);
-font-size:22px;
-'>@</button>
+    <textarea id="textarea-errors" name="textarea-errors"> 
+    </textarea>
 
-<style>
-.toggle-code-button-class:hover,
-.toggle-code-button-class:focus {
-    color: rgb(192, 225, 208)!important;
-    text-decoration: none;
-    cursor: pointer;
-}
 
-.share-button-class:hover,
-.share-button-class:focus {
-    color: rgb(146, 202, 232)!important;
-    text-decoration: none;
-    cursor:rgb(107, 107, 210)
-}
+    <div style='position:relative; pointer-events:none;'>
 
-</style>
+        <canvas id='render-canvas' style='
+        position:relative;
+        left: 0; top: 0;
+        height: 100%;
+        width: 100%;
+        z-index:-10;
+        pointer-events: none;  
+        '></canvas>
 
-<textarea id="textarea-code" name="textarea-code"> 
-</textarea>
+        <canvas id='text-canvas' style='
+        position:relative;
+        left: 0; top: 0;
+        height: 100%;
+        width: 100%;
+        z-index:-10;
+        pointer-events: none;  
+        '></canvas>
 
-<textarea id="textarea-errors" name="textarea-errors"> 
-</textarea>
+    </div>
 
-<div style='position:relative; pointer-events:none;'>
 
-<canvas id='render-canvas' style='
-position:absolute;
-left: 0; top: 0;
-height: 100%;
-width: 100%;
-z-index:-10;
-pointer-events: none;  
-'></canvas>
-
-<canvas id='text-canvas' style='
-position:relative;
-left: 0; top: 0;
-height: 100%;
-width: 100%;
-z-index:-10;
-pointer-events: none;  
-'></canvas>
-
-</div>
 </div>
 
 
@@ -210,20 +213,35 @@ function onLoad()
     GLU.setupGL(canvas);
     gl = GLU.gl;
 
+    // Load CodeMirror and jquery-ui (for resizable) CSS rules
     var styleElement = document.createElement('style');
     styleElement.appendChild(document.createTextNode(codemirror_css_rules));
+    styleElement.appendChild(document.createTextNode(jquery_ui_css_rules));
     document.getElementsByTagName('head')[0].appendChild(styleElement);
 
+    // Set up CodeMirror instance for code editor:
     let code_textarea = document.getElementById("textarea-code");
     editor = CodeMirror(function(elt) {
         code_textarea.parentNode.replaceChild(elt, code_textarea);
     }, {
         lineNumbers: true,
-        extraKeys: {"Ctrl-Space": "autocomplete"},
         mode: "x-shader/x-fragment"
+    });
+    $( function() {
+        $(editor.getWrapperElement()).resizable();
+    } );
+    $(editor.getWrapperElement()).resizable({
+        resize: function() {
+            editor.setSize($(this).width(), $(this).height());
+            editor.refresh();
+        }
     });
     editor.setOption("theme", 'lucario');
 
+    let code = '';
+    editor.setValue(code);
+
+    // Set up CodeMirror instance for error reports:
     let error_textarea = document.getElementById("textarea-errors");
     error_editor = CodeMirror(function(elt) {
         error_textarea.parentNode.replaceChild(elt, error_textarea);
@@ -239,10 +257,7 @@ function onLoad()
     error_editor.setValue('');
     $(error_editor.getWrapperElement()).hide();
 
-    let code = '';
-    editor.setValue(code);
-
-    // Initialize Inlet
+    // Initialize Inlet (draggable values/colors in CodeMirror)
     Inlet(editor, {container: document.getElementById("container"),
                    fixedContainer: true  
                   });
@@ -326,5 +341,7 @@ $(document).ready(function()
 });
 
 </script>
+
+
 
 </body>

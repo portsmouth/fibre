@@ -8,6 +8,7 @@ var codemirror_css_rules = `
   font-family: monospace;
   font-size: 12px;
   height: 300px;
+  width: 500px;
   top: 50px;
   color: black;
   position: relative;
@@ -377,7 +378,7 @@ span.CodeMirror-selectedtext { background: none; }
 .cm-s-lucario .CodeMirror-guttermarker-subtle { color: #777; }
 .cm-s-lucario .CodeMirror-cursor { border-left: solid thin #E6C845; }
 .cm-s-lucario .CodeMirror-linenumber { color: #72C05D; }
-.cm-s-lucario .CodeMirror-selected { background: #243443; }
+.cm-s-lucario .CodeMirror-selected { background: #a03443; }
 .cm-s-lucario .CodeMirror-line::selection, .cm-s-lucario .CodeMirror-line > span::selection, .cm-s-lucario .CodeMirror-line > span > span::selection { background: #243443; }
 .cm-s-lucario .CodeMirror-line::-moz-selection, .cm-s-lucario .CodeMirror-line > span::-moz-selection, .cm-s-lucario .CodeMirror-line > span > span::-moz-selection { background: #243443; }
 .cm-s-lucario span.cm-comment { color: #5c98cd; }
