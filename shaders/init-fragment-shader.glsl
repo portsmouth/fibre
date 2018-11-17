@@ -63,22 +63,22 @@ void main()
                  gridSpace*floor(X.z/gridSpace));
         X = min(X, boundsMax);
         X = max(X, boundsMin);
+    }
 
-        float Ct    = 2.0*rand(seed)-1.0;
-        float theta = acos(Ct);
-        float St    = sin(theta);
-        float phi   = rand(seed)*2.0*M_PI;
-        float Sp = sin(phi);
-        float Cp = cos(phi);
-        vec3 dX = tubeWidth * vec3(St*Cp, St*Sp, Ct);
-        if (tubeSpread)
-        {
-            X += dX;
-        }
-        else
-        {
-            offset = dX;
-        }
+    float Ct    = 2.0*rand(seed)-1.0;
+    float theta = acos(Ct);
+    float St    = sin(theta);
+    float phi   = rand(seed)*2.0*M_PI;
+    float Sp = sin(phi);
+    float Cp = cos(phi);
+    vec3 dX = tubeWidth * vec3(St*Cp, St*Sp, Ct);
+    if (tubeSpread)
+    {
+        X += dX;
+    }
+    else
+    {
+        offset = dX;
     }
 
     gbuf_pos = vec4(X, 0.0);

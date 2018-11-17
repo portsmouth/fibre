@@ -169,6 +169,94 @@ GUI.prototype.createguiSettings = function()
     this.advancedFolder.add(renderer.settings, 'rayBatch', 4, 1024).onChange( function(value) { fibre.manip_enabled = false; renderer.rayBatch = Math.floor(value); renderer.initStates(); renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.advancedFolder.add(renderer.settings, 'maxIterations', 10, 1000).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
 
+    this.guiSettings.light1_color = [renderer.settings.light1_color[0]*255.0, 
+                                     renderer.settings.light1_color[1]*255.0, 
+                                     renderer.settings.light1_color[2]*255.0];
+    this.advancedFolder.addColor(this.guiSettings, 'light1_color').onChange( function(value) 
+        { 
+            fibre.manip_enabled = false;
+            if (typeof value==='string' || value instanceof String)
+            {
+                var color = hexToRgb(value);
+                renderer.settings.light1_color[0] = color.r / 255.0;
+                renderer.settings.light1_color[1] = color.g / 255.0;
+                renderer.settings.light1_color[2] = color.b / 255.0;
+            }
+            else
+            {
+                renderer.settings.light1_color[0] = value[0] / 255.0;
+                renderer.settings.light1_color[1] = value[1] / 255.0;
+                renderer.settings.light1_color[2] = value[2] / 255.0;
+            }
+            renderer.reset(true);
+        }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+
+    this.guiSettings.light2_color = [renderer.settings.light2_color[0]*255.0, 
+                                     renderer.settings.light2_color[1]*255.0, 
+                                     renderer.settings.light2_color[2]*255.0];
+    this.advancedFolder.addColor(this.guiSettings, 'light2_color').onChange( function(value) 
+        { 
+            fibre.manip_enabled = false;
+            if (typeof value==='string' || value instanceof String)
+            {
+                var color = hexToRgb(value);
+                renderer.settings.light2_color[0] = color.r / 255.0;
+                renderer.settings.light2_color[1] = color.g / 255.0;
+                renderer.settings.light2_color[2] = color.b / 255.0;
+            }
+            else
+            {
+                renderer.settings.light2_color[0] = value[0] / 255.0;
+                renderer.settings.light2_color[1] = value[1] / 255.0;
+                renderer.settings.light2_color[2] = value[2] / 255.0;
+            }
+            renderer.reset(true);
+        }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+
+    this.guiSettings.light1_dir = [renderer.settings.light1_dir[0]*255.0, 
+                                   renderer.settings.light1_dir[1]*255.0, 
+                                   renderer.settings.light1_dir[2]*255.0];
+    this.advancedFolder.addColor(this.guiSettings, 'light1_dir').onChange( function(value) 
+        { 
+            fibre.manip_enabled = false;
+            if (typeof value==='string' || value instanceof String)
+            {
+                var color = hexToRgb(value);
+                renderer.settings.light1_dir[0] = color.r / 255.0;
+                renderer.settings.light1_dir[1] = color.g / 255.0;
+                renderer.settings.light1_dir[2] = color.b / 255.0;
+            }
+            else
+            {
+                renderer.settings.light1_dir[0] = value[0] / 255.0;
+                renderer.settings.light1_dir[1] = value[1] / 255.0;
+                renderer.settings.light1_dir[2] = value[2] / 255.0;
+            }
+            renderer.reset(true);
+        }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+
+    this.guiSettings.light2_dir = [renderer.settings.light2_dir[0]*255.0, 
+                                   renderer.settings.light2_dir[1]*255.0, 
+                                   renderer.settings.light2_dir[2]*255.0];
+    this.advancedFolder.addColor(this.guiSettings, 'light2_dir').onChange( function(value) 
+        { 
+            fibre.manip_enabled = false;
+            if (typeof value==='string' || value instanceof String)
+            {
+                var color = hexToRgb(value);
+                renderer.settings.light2_dir[0] = color.r / 255.0;
+                renderer.settings.light2_dir[1] = color.g / 255.0;
+                renderer.settings.light2_dir[2] = color.b / 255.0;
+            }
+            else
+            {
+                renderer.settings.light2_dir[0] = value[0] / 255.0;
+                renderer.settings.light2_dir[1] = value[1] / 255.0;
+                renderer.settings.light2_dir[2] = value[2] / 255.0;
+            }
+            renderer.reset(true);
+        }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+
     let button_record = { record:function(e) { 
         let button = ME._toggle_record_button;
         let command = button.innerText.trim();

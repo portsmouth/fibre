@@ -196,22 +196,22 @@ void main()
                  gridSpace*floor(X.z/gridSpace));
         X = min(X, boundsMax);
         X = max(X, boundsMin);
+    }
 
-        float Ct    = 2.0*rand(seed)-1.0;
-        float theta = acos(Ct);
-        float St    = sin(theta);
-        float phi   = rand(seed)*2.0*M_PI;
-        float Sp = sin(phi);
-        float Cp = cos(phi);
-        vec3 dX = tubeWidth * vec3(St*Cp, St*Sp, Ct);
-        if (tubeSpread)
-        {
-            X += dX;
-        }
-        else
-        {
-            offset = dX;
-        }
+    float Ct    = 2.0*rand(seed)-1.0;
+    float theta = acos(Ct);
+    float St    = sin(theta);
+    float phi   = rand(seed)*2.0*M_PI;
+    float Sp = sin(phi);
+    float Cp = cos(phi);
+    vec3 dX = tubeWidth * vec3(St*Cp, St*Sp, Ct);
+    if (tubeSpread)
+    {
+        X += dX;
+    }
+    else
+    {
+        offset = dX;
     }
 
     gbuf_pos = vec4(X, 0.0);
@@ -250,19 +250,18 @@ uniform vec3 specColor;
 
 out vec4 outputColor;
 
-#define oos3 0.57735026919
-const vec3 L1 = vec3(oos3, oos3, oos3);
-const vec3 L2 = vec3(-oos3, -oos3, -oos3);
-const vec3 C1 = vec3(1.0, 0.95, 0.9);
-const vec3 C2 = vec3(1.0, 0.7, 0.5);
+uniform vec3 L1;
+uniform vec3 L2;
+uniform vec3 C1;
+uniform vec3 C2;
+
+const float epsilon = 1.0e-7;
 
 void main()
 {
     vec3 Tn = normalize(T);
-
-    float Dl = length(D);
-    vec3 N = Dl > 0.0 ? D/Dl : vec3(1.0);
-
+    vec3 N = normalize(D);
+    
     if (hairShader)
     {
         float dotTL1 = dot(Tn, L1);
@@ -271,7 +270,7 @@ void main()
         float sinTL2 = sqrt(max(0.0, 1.0 - dotTL2*dotTL2));
         float dotTE = dot(Tn, -V);
         float sinTE = sqrt(max(0.0, 1.0 - dotTE*dotTE));
-        vec3 diffuse1 = vColor * C1 * sinTL1 * max(0.0, dot(L1, N));                    // kajiya-kay diffuse
+        vec3 diffuse1 = vColor * C1 * sinTL1 * max(0.0, dot(L1, N));  // kajiya-kay diffuse
         vec3 diffuse2 = vColor * C2 * sinTL2 * max(0.0, dot(L2, N));                    
         vec3 specular1 = specColor * pow(abs(-dotTL1*dotTE + sinTL1*sinTE), specShine); 
         vec3 specular2 = specColor * pow(abs(-dotTL2*dotTE + sinTL2*sinTE), specShine); // kajiya-kay spec
@@ -283,8 +282,8 @@ void main()
         vec3 diffuse2 = vColor * C2 * max(0.0, dot(L2, N));
         vec3 H1 = normalize(L1 + V);
         vec3 H2 = normalize(L2 + V);
-        vec3 specular1 = specColor * pow(max(0.0, dot(H1, N)), specShine);
-        vec3 specular2 = specColor * pow(max(0.0, dot(H2, N)), specShine);
+        vec3 specular1 = specColor * pow(abs(dot(H1, N)), specShine);
+        vec3 specular2 = specColor * pow(abs(dot(H2, N)), specShine);
         outputColor.rgb = diffuse1 + specular1 + diffuse2 + specular2;
     }
 

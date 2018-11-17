@@ -94,6 +94,13 @@ var Renderer = function()
     this.settings.hairShader = true;
     this.settings.specShine = 50.0;
     this.settings.specColor = [0.5, 0.5, 0.5];
+
+    this.settings.light1_color = [1.0, 0.9, 0.8];
+    this.settings.light2_color = [0.8, 0.9, 1.0];
+    let oosr3 = 1.0 / Math.pow(3.0, 0.5);
+    this.settings.light1_dir = [ oosr3,  oosr3,  oosr3];
+    this.settings.light2_dir = [-oosr3, -oosr3, -oosr3];
+
     this.settings.depthTest = true;
     this.settings.dash_spacing = 0.05;
     this.settings.dash_speed = 10.0;
@@ -462,7 +469,7 @@ Renderer.prototype.trace = function(integrate_forward)
         this.initProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
         this.initProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
         this.initProgram.uniformF("gridSpace", scale*this.settings.gridSpace);
-        this.initProgram.uniformF("tubeWidth", scale*this.settings.tubeWidth);
+        this.initProgram.uniformF("tubeWidth", scale*Math.max(this.settings.tubeWidth, 1.0e-6));
         this.initProgram.uniformI("tubeSpread", this.settings.tubeSpread);
 
         this.quadVbo.draw(this.initProgram, gl.TRIANGLE_FAN);
@@ -613,6 +620,19 @@ Renderer.prototype.render = function()
         this.lineProgram.uniformI("hairShader", this.settings.hairShader);
         this.lineProgram.uniformF("specShine", this.settings.specShine);
         this.lineProgram.uniform3Fv("specColor", this.settings.specColor);
+
+        let L1 = this.settings.light1_dir;
+        let L1norm = Math.max(1.0e-6, Math.pow(L1[0]*L1[0] + L1[1]*L1[1] + L1[2]*L1[2], 0.5));
+        L1 = [L1[0]/L1norm, L1[1]/L1norm, L1[2]/L1norm];
+
+        let L2 = this.settings.light2_dir;
+        let L2norm = Math.max(1.0e-6, Math.pow(L2[0]*L2[0] + L2[1]*L2[1] + L2[2]*L2[2], 0.5));
+        L2 = [L2[0]/L2norm, L2[1]/L2norm, L2[2]/L2norm];
+
+        this.lineProgram.uniform3Fv("C1", this.settings.light1_color);
+        this.lineProgram.uniform3Fv("C2", this.settings.light2_color);
+        this.lineProgram.uniform3Fv("L1", L1);
+        this.lineProgram.uniform3Fv("L2", L2);
        
         // Setup projection matrix
         var projectionMatrixLocation = this.lineProgram.getUniformLocation("u_projectionMatrix");
