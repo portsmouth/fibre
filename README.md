@@ -14,7 +14,8 @@ The code editor on the left specifies a three-dimensional, first-order ODE
 <p align=center>
 <a href="https://www.codecogs.com/eqnedit.php?latex=\begin{array}{rcl}&space;\frac{\mathrm{dx}}{dt}&space;&=&&space;v_x(x,&space;y,&space;z,&space;t)&space;\vspace{0.1cm}\\&space;\frac{\mathrm{dy}}{dt}&space;&=&&space;v_y(x,&space;y,&space;z,&space;t)&space;\vspace{0.1cm}\\&space;\frac{\mathrm{dy}}{dt}&space;&=&&space;v_z(x,&space;y,&space;z,&space;t)&space;\vspace{0.1cm}\\&space;\end{array}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\begin{array}{rcl}&space;\frac{\mathrm{dx}}{dt}&space;&=&&space;v_x(x,&space;y,&space;z,&space;t)&space;\vspace{0.1cm}\\&space;\frac{\mathrm{dy}}{dt}&space;&=&&space;v_y(x,&space;y,&space;z,&space;t)&space;\vspace{0.1cm}\\&space;\frac{\mathrm{dy}}{dt}&space;&=&&space;v_z(x,&space;y,&space;z,&space;t)&space;\vspace{0.1cm}\\&space;\end{array}" title="\begin{array}{rcl} \frac{\mathrm{dx}}{dt} &=& v_x(x, y, z, t) \vspace{0.1cm}\\ \frac{\mathrm{dy}}{dt} &=& v_y(x, y, z, t) \vspace{0.1cm}\\ \frac{\mathrm{dy}}{dt} &=& v_z(x, y, z, t) \vspace{0.1cm}\\ \end{array}" /></a>
 </p>
-via the GLSL function `testing` `testing test` `testing test()` `vec3 velocity(vec3 p, float t)` . Additionally, a color at each point in space must be specified via `vec3 velocity(vec3 p, float t)` . The system then traces the solution curves of the ODE, starting from the "initial box" positioned in the viewport. These curves are then rendered as colored tubes.
+
+via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color at each point in space must be specified via `vec3 velocity(vec3 p, float t)`. The system then traces the solution curves of the ODE, starting from the "initial box" positioned in the viewport. These curves are then rendered as colored tubes.
 
 UI controls:
  - click on values in the code editor to pop up a slider to scrub 
