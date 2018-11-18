@@ -87,13 +87,11 @@ GUI.prototype.createguiSettings = function()
 
     // Integrator folder
     this.integratorFolder = this.gui.addFolder('Integrator');
-    this.integratorFolder.add(renderer.settings, 'maxTimeSteps', 4, 4096).onChange( function(value) { fibre.manip_enabled = false; renderer.settings.maxTimeSteps = Math.floor(value); renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
-    this.integratorFolder.add(renderer.settings, 'integrationTime', 0.1, 1000.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
-    this.integratorFolder.add(renderer.settings, 'integrateForward').onChange( function(value) { renderer.reset(true); } );
     this.integratorFolder.add(renderer.settings, 'gridSpace', 0.0, 1.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'tubeWidth', 0.0, 0.1).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
-    this.integratorFolder.add(renderer.settings, 'tubeSpread').onChange( function(value) { renderer.reset(true); } )
-    
+    this.integratorFolder.add(renderer.settings, 'maxTimeSteps', 4, 4096).onChange( function(value) { fibre.manip_enabled = false; renderer.settings.maxTimeSteps = Math.floor(value); renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'integrationTime', 0.1, 1000.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    //this.integratorFolder.add(renderer.settings, 'tubeSpread').onChange( function(value) { renderer.reset(true); } )
     this.integratorFolder.add(renderer.settings, 'xmin').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_xmax() < value) renderer.settings.xmin = fibre.get_xmax(); else fibre.set_xmin(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'xmax').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_xmin() > value) renderer.settings.xmax = fibre.get_xmin(); else fibre.set_xmax(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'ymin').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_ymax() < value) renderer.settings.ymin = fibre.get_ymax(); else fibre.set_ymin(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
@@ -102,6 +100,7 @@ GUI.prototype.createguiSettings = function()
     this.integratorFolder.add(renderer.settings, 'zmax').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_zmin() > value) renderer.settings.zmax = fibre.get_zmin(); else fibre.set_zmax(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'clipToBounds').onChange( function(value) { renderer.reset(true); } );
     this.integratorFolder.add(renderer.settings, 'showBounds').onChange( function(value) { renderer.reset(true); } );
+    this.integratorFolder.add(renderer.settings, 'integrateForward').onChange( function(value) { renderer.reset(true); } );
 
     // Renderer folder
     this.rendererFolder = this.gui.addFolder('Renderer');
@@ -109,32 +108,10 @@ GUI.prototype.createguiSettings = function()
     this.rendererFolder.add(renderer.settings, 'gamma', 0.0, 3.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.rendererFolder.add(renderer.settings, 'contrast', 0.0, 3.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.rendererFolder.add(renderer.settings, 'saturation', 0.0, 3.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
-    this.rendererFolder.add(renderer.settings, 'subtractiveColor').onChange( function(value) { renderer.reset(true); } );
-    
-    this.guiSettings.bgColor = [renderer.settings.bgColor[0]*255.0, 
-                                renderer.settings.bgColor[1]*255.0, 
-                                renderer.settings.bgColor[2]*255.0];
-    this.rendererFolder.addColor(this.guiSettings, 'bgColor').onChange( function(value) 
-        { 
-            fibre.manip_enabled = false;
-            if (typeof value==='string' || value instanceof String)
-            {
-                var color = hexToRgb(value);
-                renderer.settings.bgColor[0] = color.r / 255.0;
-                renderer.settings.bgColor[1] = color.g / 255.0;
-                renderer.settings.bgColor[2] = color.b / 255.0;
-            }
-            else
-            {
-                renderer.settings.bgColor[0] = value[0] / 255.0;
-                renderer.settings.bgColor[1] = value[1] / 255.0;
-                renderer.settings.bgColor[2] = value[2] / 255.0;
-            }
-            renderer.reset(true);
-        }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+       
+    let camera = fibre.getCamera();
+    this.rendererFolder.add(camera, 'fov', 5.0, 120.0).onChange(function(value) { camera.updateProjectionMatrix(); renderer.reset(true); fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
 
-
-    
     this.rendererFolder.add(renderer.settings, 'hairShader').onChange( function(value) { renderer.reset(true); } );
     this.rendererFolder.add(renderer.settings, 'specShine', 0.0, 100.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.guiSettings.specColor = [renderer.settings.specColor[0]*255.0, 
@@ -168,6 +145,29 @@ GUI.prototype.createguiSettings = function()
     this.advancedFolder = this.gui.addFolder('Advanced');
     this.advancedFolder.add(renderer.settings, 'rayBatch', 4, 1024).onChange( function(value) { fibre.manip_enabled = false; renderer.rayBatch = Math.floor(value); renderer.initStates(); renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.advancedFolder.add(renderer.settings, 'maxIterations', 10, 1000).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.advancedFolder.add(renderer.settings, 'subtractiveColor').onChange( function(value) { renderer.reset(true); } );
+
+   this.guiSettings.bgColor = [renderer.settings.bgColor[0]*255.0, 
+                                renderer.settings.bgColor[1]*255.0, 
+                                renderer.settings.bgColor[2]*255.0];
+    this.advancedFolder.addColor(this.guiSettings, 'bgColor').onChange( function(value) 
+        { 
+            fibre.manip_enabled = false;
+            if (typeof value==='string' || value instanceof String)
+            {
+                var color = hexToRgb(value);
+                renderer.settings.bgColor[0] = color.r / 255.0;
+                renderer.settings.bgColor[1] = color.g / 255.0;
+                renderer.settings.bgColor[2] = color.b / 255.0;
+            }
+            else
+            {
+                renderer.settings.bgColor[0] = value[0] / 255.0;
+                renderer.settings.bgColor[1] = value[1] / 255.0;
+                renderer.settings.bgColor[2] = value[2] / 255.0;
+            }
+            renderer.reset(true);
+        }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
 
     this.guiSettings.light1_color = [renderer.settings.light1_color[0]*255.0, 
                                      renderer.settings.light1_color[1]*255.0, 
