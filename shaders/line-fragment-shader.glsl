@@ -9,21 +9,18 @@ uniform vec3 V;
 uniform bool hairShader;
 uniform float specShine;
 uniform vec3 specColor;
-
-out vec4 outputColor;
-
 uniform vec3 L1;
 uniform vec3 L2;
 uniform vec3 C1;
 uniform vec3 C2;
 
-const float epsilon = 1.0e-7;
+out vec4 outputColor;
 
 void main()
 {
     vec3 Tn = normalize(T);
     vec3 N = normalize(D);
-    
+
     if (hairShader)
     {
         float dotTL1 = dot(Tn, L1);
