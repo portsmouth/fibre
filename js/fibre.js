@@ -36,7 +36,7 @@ var Fibre = function(editor, error_editor)
     window.addEventListener( 'resize', this, false );
 
     // Setup THREE.js orbit camera
-    var VIEW_ANGLE = 45;
+    var VIEW_ANGLE = 40;
     var ASPECT = this.width / this.height;
     var NEAR = 0.05;
     var FAR = 1000;
@@ -105,7 +105,7 @@ var Fibre = function(editor, error_editor)
     // Attempt to load from current URL
     if (!this.load_url(window.location.href))
     {
-        this.presets.load_preset('Rucklidge');
+        this.presets.load_preset('Arneodo attractor');
     }
     
     // Do initial resize:
@@ -444,6 +444,32 @@ Fibre.prototype.capsuleIntersect = function(ray, cA, cB, R)
     return {hit:true, t:t};
 }
 
+Fibre.prototype.boxIntersect = function(ray, boundsMin, boundsMax)
+{
+    let o = ray.origin;
+    let d = ray.direction;
+
+    let dL = new THREE.Vector3(1.0/d.x, 1.0/d.y, 1.0/d.z);
+    let lo = boundsMin.clone(); lo.sub(o); lo.multiply(dL);
+    let hi = boundsMax.clone(); hi.sub(o); hi.multiply(dL);
+
+    let tmp = lo.clone();
+    tmp = tmp.min(hi);
+    hi = hi.add(lo); hi.sub(tmp);
+    lo = tmp;
+
+    let hit = !( lo.x>hi.y || lo.y>hi.x || lo.x>hi.z || lo.z>hi.x || lo.y>hi.z || lo.z>hi.y );
+    if (!hit)
+    {
+        return {hit:false, t:null};
+    }
+
+    let t = Math.max(lo.x, lo.y, lo.z);
+    if (t<0.0) return {hit:false, t:null};
+    return {hit:true, t:t, type: 'center'};
+}
+
+
 
 Fibre.prototype.boundsRaycast = function(u, v)
 {
@@ -477,14 +503,7 @@ Fibre.prototype.boundsRaycast = function(u, v)
     let isect_min = {hit: false};
     let tmin = 1.0e10;
 
-    // raycast center sphere manipulator
-    let sphereR = 0.333 * Math.max(e[0], e[1], e[2]);
-    let center = new THREE.Vector3(o[0] + 0.5*e[0], o[1] + 0.5*e[1], o[2] + 0.5*e[2]);
-    let isect_sphere = this.sphereIntersect(ray, center, sphereR);
-    if (isect_sphere.hit) { isect_min = isect_sphere; tmin = isect_sphere.t; };
-
     // raycast corner cylinder manipulators
-    let cornerR = 0.05 * Math.max(e[0], e[1], e[2]);
     let outerR = 0.1 * Math.max(e[0], e[1], e[2]);
     let innerR = 0.49;
     for (i = 0; i<corners.length; i++)
@@ -517,6 +536,9 @@ Fibre.prototype.boundsRaycast = function(u, v)
             cB.add(axisVecB);
             cA.add(axisVecA);
 
+            let cAB = cB.clone();
+            cAB.sub(cA);
+            let cornerR = 0.075 * cAB.length();
             let isect_corn = this.capsuleIntersect(ray, cA, cB, cornerR)
             if ( isect_corn.hit && isect_corn.t < tmin )
             {
@@ -525,6 +547,14 @@ Fibre.prototype.boundsRaycast = function(u, v)
             }
         }
     }
+
+    // Check for box overlap ("center dragging") if no corner manipulator is selected
+    if (!isect_min.hit)
+    {
+        let isect_box = this.boxIntersect(ray, boundsMin, boundsMax);
+        if (isect_box.hit) { isect_min = isect_box; };
+    }
+
     return isect_min;
 }
 

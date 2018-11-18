@@ -579,6 +579,7 @@ Renderer.prototype.render = function()
     // Get camera matrices
     var camera = fibre.camera;
     camera.updateMatrixWorld();
+    camera.updateProjectionMatrix();
     var matrixWorldInverse = new THREE.Matrix4();
     matrixWorldInverse.getInverse( camera.matrixWorld );
     var modelViewMatrix = matrixWorldInverse.toArray();
@@ -682,7 +683,7 @@ Renderer.prototype.render = function()
         let boundsHit = fibre.boundsHit;
         let C = this.settings.bgColor;
         if (boundsHit && boundsHit.hit && boundsHit.type == 'center')
-            this.boxProgram.uniform4Fv("color", [1.0-C[0], 0.5*(1.0-C[1]), 0.5*(1.0-C[2]), 0.6]);
+            this.boxProgram.uniform4Fv("color", [1.0-C[0], 0.85*(1.0-C[1]), 0.25*(1.0-C[2]), 0.6]);
         else
             this.boxProgram.uniform4Fv("color", [1.0-C[0], 1.0-C[1], 1.0-C[2], 0.25]);
 
