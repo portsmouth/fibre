@@ -23,16 +23,16 @@ In general, a three-dimensional dynamical system is a differential equation of t
 </p>
 
 In Fibre, the code editor on the left specifies this velocity vector field
-via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color at each point in space must be specified via `vec3 color(vec3 p, float t)`. The system then traces the solution curves of the ODE (using the [Runge-Kutta](https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods) method), starting from the "initial box" positioned in the viewport. These curves are rendered as colored tubes. (Note, the tubes are not rendered as geometry, they consist of many individual line segments, which are progressively rendered and blended over a number of iterations in order to converge to the final image).
+via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color at each point in space must be specified via `vec3 color(vec3 p, float t)`. The system then traces the solution curves of the ODE (using the [Runge-Kutta](https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods) method), starting from a grid of points covering the "initial conditions box" positioned in the viewport. These curves are rendered as colored tubes. (Note, the tubes are not rendered as geometry, they consist of many individual line segments, which are progressively rendered and blended over a number of iterations in order to converge to the final image).
 
 ## UI controls:
  - left-click mouse to rotate, right-click mouse to pan camera
- - hover over the initial box and left-click to drag it around, or hover over the box corners and left-click to resize the box dimensions. The box extents can also be edited directly in the `Integrator` rollout of the UI.
+ - hover over the initial conditions box and left-click to drag it around, or hover over the box corners and left-click to resize the box dimensions. The box extents can also be edited directly in the `Integrator` rollout of the UI.
  - editing the GLSL code immediately updates the shader -- if there is an error, this will be copied to the viewport, and rendering terminated
  - click on values in the code editor to pop up a slider which scrubs the value 
  - click on colors (e.g. `rgb(255, 0, 0)`) in the code editor to pop up a color wheel
  - AWSD keys to fly
- - C key to frame camera on the initial box
+ - C key to frame camera on the initial conditions box
  - P key to capture a screenshot of the current render in a new browser window
  - H key to hide/show the sidebar UI
  - F11 key to enter/exit fullscreen mode
@@ -40,13 +40,13 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
 
 ## Integration parameters
 
-- *gridSpace*: the spacing between start points within the initial box, relative to the box maximum extents
+- *gridSpace*: the spacing between start points within the initial conditions box, relative to the box maximum extents
 - *tubeWidth*: the radius of the rendered solution tubes, relative to the box maximum extents
 - *integrationTime*: the total time to integrate over
 - *maxTimeSteps*: the number of timesteps into which the `integrationTime` is broken into
-- *xmin*: (etc.) initial box bounds
-- *clipToBounds*: renders only the portion of the solution curves which lies within the initial box
-- *showBounds*: whether to show the initial box bounds 
+- *xmin*: (etc.) initial conditions box bounds
+- *clipToBounds*: renders only the portion of the solution curves which lies within the initial conditions box
+- *showBounds*: whether to show the initial conditions box bounds 
 - *integrateForward*: if selected, integrate over positive times i.e. the time interval [0, `integrationTime`], otherwise integrate over the time interval [-`integrationTime`/2, `integrationTime`/2]
 
 
