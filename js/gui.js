@@ -137,11 +137,7 @@ GUI.prototype.createguiSettings = function()
             renderer.reset(true);
         }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.rendererFolder.add(renderer.settings, 'depthTest').onChange( function(value) { renderer.reset(true); } );
-    this.rendererFolder.add(renderer.settings, 'dashes').onChange( function(value) { if (value) renderer.settings.depthTest = true; ME.sync(); renderer.reset(true); } );
-    this.rendererFolder.add(renderer.settings, 'dash_spacing', 0.0, 1.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
-    this.rendererFolder.add(renderer.settings, 'dash_size', 0.0, 1.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
-    this.rendererFolder.add(renderer.settings, 'dash_speed', 0.0, 1000.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
-    
+
     // Advanced folder
     this.advancedFolder = this.gui.addFolder('Advanced');
     this.advancedFolder.add(renderer.settings, 'rayBatch', 4, 1024).onChange( function(value) { fibre.manip_enabled = false; renderer.rayBatch = Math.floor(value); renderer.initStates(); renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
@@ -258,6 +254,11 @@ GUI.prototype.createguiSettings = function()
             renderer.reset(true);
         }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
 
+    this.advancedFolder.add(renderer.settings, 'dashes').onChange( function(value) { if (value) renderer.settings.depthTest = true; ME.sync(); renderer.reset(true); } );
+    this.advancedFolder.add(renderer.settings, 'dash_spacing', 0.0, 1.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.advancedFolder.add(renderer.settings, 'dash_size', 0.0, 1.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.advancedFolder.add(renderer.settings, 'dash_speed', 0.0, 1000.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    
     let button_record = { record:function(e) { 
         let button = ME._toggle_record_button;
         let command = button.innerText.trim();
