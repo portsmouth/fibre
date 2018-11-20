@@ -30,12 +30,12 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
  - editing the GLSL code immediately updates the shader -- if there is an error, this will be copied to the viewport, and rendering terminated
  - click on values in the code editor to pop up a slider which scrubs the value 
  - click on colors (e.g. `rgb(255, 0, 0)`) in the code editor to pop up a color wheel
+  - The second (blue) &#9776; button generates a data URL which can be used to save and share the current vector field. Note that the URL itself contains the full state of the application, including the GLSL code, all the UI settings, and the camera and initial conditions box. So this link can be used to share the exact state of the application with anyone else (e.g. on Twitter).
  - AWSD keys to fly
  - C key to frame camera on the initial conditions box
  - P key to capture a screenshot of the current render in a new browser window
  - H key to hide/show the sidebar UI
  - F11 key to enter/exit fullscreen mode
- - The second (blue) &#9776; button generates a data URL which can be used to save and share the current vector field. Note that the URL itself contains the full state of the application, including the GLSL code, all the UI settings, and the camera and initial conditions box. So this link can be used to share the exact state of the application with anyone else (e.g. on Twitter).
 
 ## Integration parameters
 
