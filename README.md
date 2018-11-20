@@ -56,8 +56,8 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
 - *contrast*: controls image contrast
 - *saturation*: controls image saturation
 - *fov*: change the camera field-of-view
-- *hairShader*: use a simple hair shading model the for specular component (otherwise use the Blinn-Phong model)
-- *specShine*: controls size of specular highlight
+- *hairShader*: use a simple hair shading model for the specular component (otherwise uses the Blinn-Phong model)
+- *specShine*: controls size of tube specular highlight
 - *specColor*: the color of the specular highlight (blended with the diffuse tube color defined in the code)
 - *depthTest*: controls whether tubes are opaque or blended
 
