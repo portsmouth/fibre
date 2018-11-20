@@ -35,7 +35,7 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
  - P key to capture a screenshot of the current render in a new browser window
  - H key to hide/show the sidebar UI
  - F11 key to enter/exit fullscreen mode
- - The second (blue) &#9776; button generates a data URL which can be used to save and share the current vector field
+ - The second (blue) &#9776; button generates a data URL which can be used to save and share the current vector field. Note that the URL itself contains the full state of the application, including the GLSL code, all the UI settings, and the camera and initial conditions box. So this link can be used to share the exact state of the application with anyone else (e.g. on Twitter).
 
 ## Integration parameters
 
