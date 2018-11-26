@@ -1045,9 +1045,10 @@ Fibre.prototype.onkeydown = function(event)
         
         case 80: // P key: save current image to disk
         {
-               var w = window.open('about:blank', 'Fibre screenshot');
-               let dataURL = this.render_canvas.toDataURL("image/png");
-               w.document.write("<img src='"+dataURL+"' alt='from canvas'/>");
+            if (fibre.editing) break;
+            var w = window.open('about:blank', 'Fibre screenshot');
+            let dataURL = this.render_canvas.toDataURL("image/png");
+            w.document.write("<img src='"+dataURL+"' alt='from canvas'/>");
             break;
         }
 
