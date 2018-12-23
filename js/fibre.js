@@ -122,7 +122,7 @@ var Fibre = function(editor, error_editor)
 */
 Fibre.prototype.getVersion = function()
 {
-	return [1, 0, 0];
+	return [1, 1, 0];
 }
 
 Fibre.prototype.handleEvent = function(event)
