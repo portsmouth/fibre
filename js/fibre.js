@@ -386,179 +386,7 @@ Fibre.prototype.reset = function(no_recompile = false)
 	this.renderer.reset(no_recompile);
 }
 
-Fibre.prototype.project = function(v, axis)
-{
-    // v - (v.axis)*axis
-    let vp = v.clone();
-    let a = axis.clone();
-    a.multiplyScalar(v.dot(axis))
-    vp.sub(a);
-    return vp;
-}
 
-
-Fibre.prototype.sphereIntersect = function(ray, center, radius)
-{
-    let o = ray.origin.clone();
-    o.sub(center);
-    let d = ray.direction;
-    let r = radius;
-    let od = o.dot(d);
-    let o2 = o.dot(o);
-    let c = o2 - r*r;
-    let b = 2.0 * od;
-    let det2 = b*b - 4.0*c;
-    if (det2 < 0.0) return {hit:false, t:null};
-    let t = (-b - Math.sqrt(det2)) / 2.0;
-    return {hit:true, t:t, type: 'center'};
-}
-
-Fibre.prototype.capsuleIntersect = function(ray, cA, cB, R)
-{
-    // check for cylinder hit
-    let o = ray.origin;
-    let d = ray.direction;
-    let axis = cB.clone(); // axis = norm(cB - cA)
-    axis.sub(cA);
-    axis.normalize();
-    let ocA = o.clone(); // ocA = o - cA
-    ocA.sub(cA);
-    let ocAp = this.project(ocA, axis);
-    let dperp = this.project(d, axis);
-    let a = dperp.dot(dperp);
-    let b = 2.0 * ocAp.dot(dperp);
-    let c = ocAp.dot(ocAp) - R*R;
-    let det2 = b*b - 4.0*a*c;
-    if (det2 < 0.0) return {hit:false, t:null};
-    
-    // check within axis bounds
-    let t = (-b - Math.sqrt(det2)) / (2.0*a);
-    let x = d.clone();
-    x.multiplyScalar(t);
-    x.add(o);
-    x.sub(cA);
-    l = x.dot(axis);
-    L = cB.sub(cA)
-    L2 = L.dot(L)
-    if (l<0.0 || l*l>L2) return {hit:false, t:null};
-    return {hit:true, t:t};
-}
-
-Fibre.prototype.boxIntersect = function(ray, boundsMin, boundsMax)
-{
-    let o = ray.origin;
-    let d = ray.direction;
-
-    let dL = new THREE.Vector3(1.0/d.x, 1.0/d.y, 1.0/d.z);
-    let lo = boundsMin.clone(); lo.sub(o); lo.multiply(dL);
-    let hi = boundsMax.clone(); hi.sub(o); hi.multiply(dL);
-
-    let tmp = lo.clone();
-    tmp = tmp.min(hi);
-    hi = hi.add(lo); hi.sub(tmp);
-    lo = tmp;
-
-    let hit = !( lo.x>hi.y || lo.y>hi.x || lo.x>hi.z || lo.z>hi.x || lo.y>hi.z || lo.z>hi.y );
-    if (!hit)
-    {
-        return {hit:false, t:null};
-    }
-
-    let t = Math.max(lo.x, lo.y, lo.z);
-    if (t<0.0) return {hit:false, t:null};
-    return {hit:true, t:t, type: 'center'};
-}
-
-
-
-Fibre.prototype.boundsRaycast = function(u, v)
-{
-    // takes pixel uv location as input
-    let dir = new THREE.Vector3();
-    dir.set(u*2 - 1,
-           -v*2 + 1,
-            0.5 );
-    dir.unproject(this.camera);
-    dir.sub(this.camera.position).normalize();
-    let ray = {origin:this.camera.position, direction: dir};
-
-    bounds = this.getBounds();
-    boundsMin = bounds.min;
-    boundsMax = bounds.max;
-    let o = [boundsMin.x, boundsMin.y, boundsMin.z];
-    let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
-    let size = Math.max(e[0], e[1], e[2]);
-
-    var corners = [
-        [o[0],        o[1],        o[2]],         // 000b = 0
-        [o[0] + e[0], o[1],        o[2]],         // 001b = 1
-        [o[0]       , o[1] + e[1], o[2]],         // 010b = 2
-        [o[0] + e[0], o[1] + e[1], o[2]],         // 011b = 3
-        [o[0],        o[1],        o[2] + e[2]],  // 100b = 4
-        [o[0] + e[0], o[1],        o[2] + e[2]],  // 101b = 5
-        [o[0]       , o[1] + e[1], o[2] + e[2]],  // 110b = 6
-        [o[0] + e[0], o[1] + e[1], o[2] + e[2]]   // 111b = 7
-	];
-
-    let isect_min = {hit: false};
-    let tmin = 1.0e10;
-
-    // raycast corner cylinder manipulators
-    let outerR = 0.1 * Math.max(e[0], e[1], e[2]);
-    let innerR = 0.49;
-    for (i = 0; i<corners.length; i++)
-    {
-        let c = corners[i];
-        let C = new THREE.Vector3(c[0], c[1], c[2]);
-        for (axis = 0; axis<3; ++axis)
-        {
-            let L  = e[axis] * innerR;
-            let Lo = e[axis] * innerR;
-            let aa = [0, 0, 0];
-            let ab = [0, 0, 0];
-
-            if ((axis==0 && (i==1 || i==3 || i==5 || i==7)) ||
-                (axis==1 && (i==2 || i==3 || i==6 || i==7)) ||
-                (axis==2 && (i==4 || i==5 || i==6 || i==7)))
-            {
-                aa[axis] = -L; 
-                ab[axis] = outerR;
-            }
-            else {
-                aa[axis] = L; 
-                ab[axis] = -outerR;
-            }
-            let axisVecB = new THREE.Vector3(ab[0], ab[1], ab[2]);
-            let axisVecA = new THREE.Vector3(aa[0], aa[1], aa[2]);
-    
-            let cA = C.clone();
-            let cB = C.clone();
-            cB.add(axisVecB);
-            cA.add(axisVecA);
-
-            let cAB = cB.clone();
-            cAB.sub(cA);
-            let cornerR = 0.075 * cAB.length();
-            let isect_corn = this.capsuleIntersect(ray, cA, cB, cornerR)
-            if ( isect_corn.hit && isect_corn.t < tmin )
-            {
-                isect_min = {hit: true, type: 'corner', index: i, axis: axis};
-                tmin = isect_corn.t;
-            }
-        }
-    }
-
-    // Check for box overlap ("center dragging") if no corner manipulator is selected
-    if (!isect_min.hit)
-    {
-        let isect_box = this.boxIntersect(ray, boundsMin, boundsMax);
-        if (isect_box.hit) { isect_min = isect_box; };
-    }
-
-    return isect_min;
-}
-
-   
 // Render all
 Fibre.prototype.render = function()
 {
@@ -685,6 +513,174 @@ Fibre.prototype.onClick = function(event)
     }
     event.preventDefault();
 }
+
+
+Fibre.prototype.project = function(v, axis)
+{
+    // v - (v.axis)*axis
+    let vp = v.clone();
+    let a = axis.clone();
+    a.multiplyScalar(v.dot(axis))
+    vp.sub(a);
+    return vp;
+}
+
+Fibre.prototype.sphereIntersect = function(ray, center, radius)
+{
+    let o = ray.origin.clone();
+    o.sub(center);
+    let d = ray.direction;
+    let r = radius;
+    let od = o.dot(d);
+    let o2 = o.dot(o);
+    let c = o2 - r*r;
+    let b = 2.0 * od;
+    let det2 = b*b - 4.0*c;
+    if (det2 < 0.0) return {hit:false, t:null};
+    let t = (-b - Math.sqrt(det2)) / 2.0;
+    return {hit:true, t:t, type: 'center'};
+}
+
+Fibre.prototype.capsuleIntersect = function(ray, cA, cB, R)
+{
+    // check for cylinder hit
+    let o = ray.origin;
+    let d = ray.direction;
+    let axis = cB.clone(); // axis = norm(cB - cA)
+    axis.sub(cA);
+    axis.normalize();
+    let ocA = o.clone(); // ocA = o - cA
+    ocA.sub(cA);
+    let ocAp = this.project(ocA, axis);
+    let dperp = this.project(d, axis);
+    let a = dperp.dot(dperp);
+    let b = 2.0 * ocAp.dot(dperp);
+    let c = ocAp.dot(ocAp) - R*R;
+    let det2 = b*b - 4.0*a*c;
+    if (det2 < 0.0) return {hit:false, t:null};
+    // check within axis bounds
+    let t = (-b - Math.sqrt(det2)) / (2.0*a);
+    let x = d.clone();
+    x.multiplyScalar(t);
+    x.add(o);
+    x.sub(cA);
+    l = x.dot(axis);
+    L = cB.clone().sub(cA)
+    L2 = L.dot(L)
+    if (l<-R || l*l>L2+R) return {hit:false, t:null};
+    let axisd = axis.dot(d)
+    if (axisd > 1.0-1.0e-10) return {hit:false, t:null};
+    let tclosest = -ocAp.dot(d) / (1.0 - axisd*axisd);
+    ocAp.addScaledVector(dperp, tclosest);
+    let dclosest = ocAp.length();
+    return {hit:true, t:dclosest};
+}
+
+Fibre.prototype.boxIntersect = function(ray, boundsMin, boundsMax)
+{
+    let o = ray.origin;
+    let d = ray.direction;
+    let dL = new THREE.Vector3(1.0/d.x, 1.0/d.y, 1.0/d.z);
+    let lo = boundsMin.clone(); lo.sub(o); lo.multiply(dL);
+    let hi = boundsMax.clone(); hi.sub(o); hi.multiply(dL);
+    let tmp = lo.clone();
+    tmp = tmp.min(hi);
+    hi = hi.add(lo); hi.sub(tmp);
+    lo = tmp;
+    let hit = !( lo.x>hi.y || lo.y>hi.x || lo.x>hi.z || lo.z>hi.x || lo.y>hi.z || lo.z>hi.y );
+    if (!hit)
+    {
+        return {hit:false, t:null};
+    }
+    let t = Math.max(lo.x, lo.y, lo.z);
+    if (t<0.0) return {hit:false, t:null};
+    return {hit:true, t:t, type: 'center'};
+}
+
+Fibre.prototype.boundsRaycast = function(u, v)
+{
+    // takes pixel uv location as input
+    let dir = new THREE.Vector3();
+    dir.set(u*2 - 1,
+           -v*2 + 1,
+            0.5 );
+    dir.unproject(this.camera);
+    dir.sub(this.camera.position).normalize();
+    let ray = {origin:this.camera.position, direction: dir};
+
+    bounds = this.getBounds();
+    boundsMin = bounds.min;
+    boundsMax = bounds.max;
+    let o = [boundsMin.x, boundsMin.y, boundsMin.z];
+    let e = [boundsMax.x-boundsMin.x, boundsMax.y-boundsMin.y, boundsMax.z-boundsMin.z];
+    let size = Math.max(e[0], e[1], e[2]);
+
+    var corners = [
+        [o[0],        o[1],        o[2]],         // 000b = 0
+        [o[0] + e[0], o[1],        o[2]],         // 001b = 1
+        [o[0]       , o[1] + e[1], o[2]],         // 010b = 2
+        [o[0] + e[0], o[1] + e[1], o[2]],         // 011b = 3
+        [o[0],        o[1],        o[2] + e[2]],  // 100b = 4
+        [o[0] + e[0], o[1],        o[2] + e[2]],  // 101b = 5
+        [o[0]       , o[1] + e[1], o[2] + e[2]],  // 110b = 6
+        [o[0] + e[0], o[1] + e[1], o[2] + e[2]]   // 111b = 7
+	];
+
+    let isect_min = {hit: false};
+    let tmin = 1.0e12;
+
+    // raycast corner cylinder manipulators
+    let outerR = 0.2 * size;
+    let innerR = 0.333;
+    for (i = 0; i<corners.length; i++)
+    {
+        let c = corners[i];
+        let C = new THREE.Vector3(c[0], c[1], c[2]);
+        for (axis = 0; axis<3; ++axis)
+        {
+            let L  = e[axis] * innerR;
+            let Lo = e[axis] * innerR;
+            let aa = [0, 0, 0];
+            let ab = [0, 0, 0];
+            if ((axis==0 && (i==1 || i==3 || i==5 || i==7)) ||
+                (axis==1 && (i==2 || i==3 || i==6 || i==7)) ||
+                (axis==2 && (i==4 || i==5 || i==6 || i==7)))
+            {
+                aa[axis] = -L; 
+                ab[axis] = outerR;
+            }
+            else {
+                aa[axis] = L; 
+                ab[axis] = -outerR;
+            }
+            let axisVecB = new THREE.Vector3(ab[0], ab[1], ab[2]);
+            let axisVecA = new THREE.Vector3(aa[0], aa[1], aa[2]);
+            let cA = C.clone();
+            let cB = C.clone();
+            cB.add(axisVecB);
+            cA.add(axisVecA);
+            let cAB = cB.clone();
+            cAB.sub(cA);
+            let cornerR = 0.0333 * size;
+            let isect_corn = this.capsuleIntersect(ray, cA, cB, cornerR)
+            if ( isect_corn.hit && isect_corn.t < tmin )
+            {
+                isect_min = {hit: true, type: 'corner', index: i, axis: axis};
+                tmin = isect_corn.t;
+            }
+        }
+    }
+
+    // Check for box overlap ("center dragging") if no corner manipulator is selected
+    if (!isect_min.hit)
+    {
+        let isect_box = this.boxIntersect(ray, boundsMin, boundsMax);
+        if (isect_box.hit) { isect_min = isect_box; };
+    }
+
+    return isect_min;
+}
+
 
 Fibre.prototype.move_corner = function(u, v)
 {
@@ -873,7 +869,6 @@ Fibre.prototype.onDocumentMouseMove = function(event)
 
     this.camControls.update();
     this.camControls.saveState();
-    //event.preventDefault();
 }
 
 Fibre.prototype.onDocumentMouseDown = function(event)
@@ -925,7 +920,6 @@ Fibre.prototype.onDocumentMouseDown = function(event)
     }
 
     this.camControls.update();
-    //event.preventDefault();
 }
 
 Fibre.prototype.onDocumentMouseUp = function(event)
@@ -1046,9 +1040,13 @@ Fibre.prototype.onkeydown = function(event)
         case 80: // P key: save current image to disk
         {
             if (fibre.editing) break;
-            var w = window.open('about:blank', 'Fibre screenshot');
-            let dataURL = this.render_canvas.toDataURL("image/png");
-            w.document.write("<img src='"+dataURL+"' alt='from canvas'/>");
+            var link = document.createElement('a');
+            link.download = "fibre.png";
+            this.render_canvas.toBlob(function(blob){
+                    link.href = URL.createObjectURL(blob);
+                    var event = new MouseEvent('click');
+                    link.dispatchEvent(event);
+                },'image/png', 1);
             break;
         }
 
