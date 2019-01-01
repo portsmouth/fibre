@@ -100,11 +100,13 @@ GUI.prototype.createguiSettings = function()
     this.integratorFolder.add(renderer.settings, 'zmin').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_zmax() < value) renderer.settings.zmin = fibre.get_zmax(); else fibre.set_zmin(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'zmax').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_zmin() > value) renderer.settings.zmax = fibre.get_zmin(); else fibre.set_zmax(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'clipToBounds').onChange( function(value) { renderer.reset(true); } );
-    this.integratorFolder.add(renderer.settings, 'showBounds').onChange( function(value) { renderer.reset(true); } );
     this.integratorFolder.add(renderer.settings, 'integrateForward').onChange( function(value) { renderer.reset(true); } );
+    this.integratorFolder.add(renderer.settings, 'enableBounds').onChange(function(value) { fibre.manip_enabled = value; });
 
     // Renderer folder
     this.rendererFolder = this.gui.addFolder('Renderer');
+
+    this.rendererFolder.add(renderer.settings, 'showBounds');
     this.rendererFolder.add(renderer.settings, 'exposure', -10.0, 10.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.rendererFolder.add(renderer.settings, 'gamma', 0.0, 3.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.rendererFolder.add(renderer.settings, 'contrast', 0.0, 3.0).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
@@ -264,18 +266,40 @@ GUI.prototype.createguiSettings = function()
         let command = button.innerText.trim();
         fibre.toggleRecord(command);
         if (command == 'RECORD') { button.innerText = 'STOP RECORDING'; button.style.backgroundColor = 'pink'; }
-        else                     { button.innerText = 'RECORD';       ; button.style.backgroundColor = 'black'; }
+        else                     { button.innerText = 'RECORD';       ; button.style.backgroundColor = 'green'; }
     }};
     let button_record_ui = this.advancedFolder.add(button_record, 'record').name('RECORD');
+    button_record_ui.__li.style.backgroundColor = 'green';
     this._toggle_record_button = button_record_ui.__li;
-
+    
     let button_recordoneperiod = { recordoneperiod:function(e) { 
         fibre.toggleRecord('RECORD PERIOD');
     }};
-    let button_recordoneperiod_ui = this.advancedFolder.add(button_recordoneperiod, 'recordoneperiod').name('RECORD PERIOD');
-    this._toggle_recordoneperiod_button = button_recordoneperiod_ui.__li;
+    let button_recordperiod_ui =  this.advancedFolder.add(button_recordoneperiod, 'recordoneperiod');
+    button_recordperiod_ui.__li.innerText = 'RECORD PERIOD'
+    button_recordperiod_ui.__li.style.backgroundColor = 'green';
 
     this.advancedFolder.add(renderer.settings, 'record_realtime', true);
+
+    let button_renderanim = { renderanim:function(e) { 
+        fibre.renderAnim();
+    }};
+    let button_renderanim_ui = this.advancedFolder.add(button_renderanim, 'renderanim');
+    button_renderanim_ui.__li.innerText = 'RENDER ANIM';
+    button_renderanim_ui.__li.style.backgroundColor = 'green';
+
+    let button_cancelanim = { cancelanim:function(e) { 
+        fibre.GIF = null;
+        fibre.animation_rendering = false;
+        fibre.reset();
+    }};
+    let button_cancelanim_ui = this.advancedFolder.add(button_cancelanim, 'cancelanim');
+    button_cancelanim_ui.__li.innerText = 'CANCEL ANIM';
+    button_cancelanim_ui.__li.style.backgroundColor = 'pink';
+
+    this.advancedFolder.add(renderer.settings, 'anim_frames', 30, 4000).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.advancedFolder.add(renderer.settings, 'anim_enable_turntable').onChange();
+    this.advancedFolder.add(renderer.settings, 'anim_turntable_degrees', 10.0, 360.0*6).onChange();
 
     this.presetsFolder.open();
     this.integratorFolder.close();

@@ -64,7 +64,6 @@ var Fibre = function(editor, error_editor)
     };
 
     this.gui = null;
-    this.guiVisible = true;
 
     // Instantiate renderer
     this.renderer = new Renderer();
@@ -75,7 +74,7 @@ var Fibre = function(editor, error_editor)
     this.preset_selection = 'None';
 
     // Create dat gui
-    this.gui = new GUI(this.guiVisible);
+    this.gui = new GUI(true);
 
     // Setup codemirror events:
     let renderer = this.renderer;
@@ -191,7 +190,9 @@ Fibre.prototype.getGLContext = function()
 */
 Fibre.prototype.showGUI = function(show)
 {
-	this.guiVisible = show;
+    if ( ( show && !this.getGUI().visible) || 
+         (!show &&  this.getGUI().visible) )
+        this.getGUI().toggleHide();
 }
 
 
@@ -278,10 +279,11 @@ Fibre.prototype.get_state = function()
                             far:  this.camera.far
     };
     let editor_settings = { code: this.code } ;
-    let gui_settings = { visible: this.guiVisible };
+    let gui_settings = { visible: this.getGUI().visible };
     let state = { R: this.renderer.settings,
                   C: camera_settings,
-                  E: editor_settings };
+                  E: editor_settings,
+                  G: gui_settings };
 
     return state;
 }
@@ -321,6 +323,12 @@ Fibre.prototype.load_state = function(state)
     this.camera.far = far;
     this.camControls.target.copy(new THREE.Vector3(T[0], T[1], T[2]));
     this.camControls.saveState();
+
+    let gui_settings = state.G;
+    if (gui_settings)
+    {
+        this.showGUI(gui_settings.visible);
+    }
 
     this.initial_camera_position = this.camera.position.clone();
     this.initial_camera_target = this.camControls.target.clone();
@@ -393,7 +401,7 @@ Fibre.prototype.render = function()
     if (!this.initialized || this.terminated) return;
     this.rendering = true;
 
-    if (this.render_dirty && !this.gif_rendering || this.renderer.settings.dashes)
+    if (this.render_dirty || this.renderer.settings.dashes)
     {
         gl.viewport(0, 0, this.width, this.height);
         gl.depthMask(true);
@@ -411,7 +419,7 @@ Fibre.prototype.render = function()
         this.textCtx.globalAlpha = 0.95;
         this.textCtx.strokeStyle = 'black';
         this.textCtx.lineWidth  = 2;
-        if (this.guiVisible)
+        if (this.getGUI().visible)
         {
             if (this.onFibreLink) this.textCtx.fillStyle = "#ff5500";
             else                  this.textCtx.fillStyle = "#ffff00";
@@ -421,16 +429,21 @@ Fibre.prototype.render = function()
             this.textCtx.fillText('Fibre v'+ver[0]+'.'+ver[1]+'.'+ver[2], this.textCtx.canvas.width - linkWidth - 14, this.textCtx.canvas.height-20);
             {
                 this.textCtx.fillStyle = "#ffaa22";
-                if (!this.gif_rendering)
-                {
-                    this.textCtx.strokeText(this.renderer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
-                    this.textCtx.fillText(this.renderer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
-                }
-                else
+                if (this.gif_rendering)
                 {
                     this.textCtx.strokeText('rendering GIF ...', 14, this.textCtx.canvas.height-25);
                     this.textCtx.fillText('rendering GIF ...', 14, this.textCtx.canvas.height-25);
-                }   
+                }
+                else if (this.animation_rendering)
+                {   
+                    this.textCtx.strokeText(this.renderer.wavesTraced + ' iterations (animation frame ' + this._anim_frame_counter + '/' + this.renderer.settings.anim_frames + ')', 14, this.textCtx.canvas.height-25);
+                    this.textCtx.fillText(this.renderer.wavesTraced + ' iterations (animation frame ' + this._anim_frame_counter + '/' + this.renderer.settings.anim_frames + ')', 14, this.textCtx.canvas.height-25);
+                }
+                else
+                {
+                    this.textCtx.strokeText(this.renderer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
+                    this.textCtx.fillText(this.renderer.wavesTraced + ' iterations', 14, this.textCtx.canvas.height-25);
+                }  
             }
         }
     }
@@ -830,7 +843,7 @@ Fibre.prototype.onDocumentMouseMove = function(event)
         return;
     }
 
-    if (this.manip_enabled)
+    if (this.manip_enabled && this.renderer.settings.enableBounds)
     {
         if (!this.cornerDragging && !this.centerDragging)
             this.camControls.enabled = true;
@@ -844,6 +857,8 @@ Fibre.prototype.onDocumentMouseMove = function(event)
             this.boundsHit = this.boundsRaycast(u, v);
         }
     }
+    else
+        this.boundsHit = false;
 
     // Check whether user is trying to click the Fibre home link, or user link
     var textCtx = this.textCtx;
@@ -875,7 +890,7 @@ Fibre.prototype.onDocumentMouseDown = function(event)
 {
     if (!this.camControls.enabled) return;
 
-    if (this.manip_enabled)
+    if (this.manip_enabled && this.renderer.settings.enableBounds)
     {
         let boundsHit = this.boundsHit;
         if (boundsHit && boundsHit.hit)
@@ -918,6 +933,8 @@ Fibre.prototype.onDocumentMouseDown = function(event)
             }
         }
     }
+    else
+        this.boundsHit = false;
 
     this.camControls.update();
 }
@@ -989,7 +1006,6 @@ Fibre.prototype.onkeydown = function(event)
 
         case 72: // H key: toggle hide/show dat gui
             if (!this.camControls.enabled || fibre.editing) break;
-            this.guiVisible = !this.guiVisible;
             fibre.getGUI().toggleHide();
             break;
 
@@ -1094,7 +1110,7 @@ Fibre.prototype.toggleRecord = function(command)
     {
         var blob = new Blob([gifworker_code]);
         var blobURL = window.URL.createObjectURL(blob);
-        this.recordingGIF = true;
+        
         this.GIF = new GIF({
             workers: 10,
             workerScript: blobURL,
@@ -1103,11 +1119,17 @@ Fibre.prototype.toggleRecord = function(command)
             height: this.height
         });
 
+        this.gif_rendering = true;
         let ME = this;
 
         this.GIF.on('finished', function(blob) {
-                window.open(URL.createObjectURL(blob));
+                var link = document.createElement('a');
+                link.download = "fibre.gif";
+                link.href = URL.createObjectURL(blob);
+                var event = new MouseEvent('click');
+                link.dispatchEvent(event);
                 ME.gif_rendering = false;
+                this.GIF = null;
         });
 
         this.gif_timer_start_ms = performance.now();
@@ -1115,7 +1137,7 @@ Fibre.prototype.toggleRecord = function(command)
 
         if (command=='RECORD PERIOD')
         {
-            this.gif_timer_max_duration = 8.0*Math.PI * 1.0e3/Math.max(1.0e-6, this.renderer.dash_speed);
+            this.gif_timer_max_duration = 8.0*Math.PI * 1.0e3/Math.max(1.0e-6, this.renderer.settings.dash_speed);
         }
         else
         {
@@ -1126,10 +1148,63 @@ Fibre.prototype.toggleRecord = function(command)
     {
         if (this.GIF)
         {
-            this.gif_rendering = true;
+            this.gif_rendering = false;
             this.GIF.render();
-            this.GIF = null;
         }
     }
 }
+
+
+Fibre.prototype.renderAnim = function()
+{
+    this.animation_rendering = true;
+
+    var blob = new Blob([gifworker_code]);
+    var blobURL = window.URL.createObjectURL(blob);
+
+    this.GIF = new GIF({
+        workers: 4,
+        workerScript: blobURL,
+        quality: 10,
+        width: this.width,
+        height: this.height
+    });
+
+    this.GIF.on('finished', function(blob) {
+            var link = document.createElement('a');
+            link.download = "fibre.gif";
+            link.href = URL.createObjectURL(blob);
+            var event = new MouseEvent('click');
+            link.dispatchEvent(event);
+    });
+
+    this._anim_perframe_iteration = 0;
+    this._anim_frame_counter = 0;
+
+    // Set up animation turntable rendering
+    let u = this.camera.up.clone();
+    let d = this.camera.getWorldDirection();
+    let y = new THREE.Vector3();
+    y.crossVectors(d, u);
+    y.normalize();
+    let x = new THREE.Vector3();
+    x.crossVectors(y, u);
+    x.normalize();
+    this._anim_x = x;
+    this._anim_y = y;
+
+    let toTarget = new THREE.Vector3();
+    toTarget.copy(this.camControls.target);
+    toTarget.sub(this.camera.position);
+    let r = Math.abs(toTarget.dot(x));
+    this._anim_r = r;
+
+    let h = -toTarget.dot(u);
+    let o = this.camControls.target.clone();
+    o.addScaledVector(u, h);
+    this._anim_o = o;
+
+    this.reset();
+}
+
 

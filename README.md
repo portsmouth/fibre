@@ -45,12 +45,12 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
 - *maxTimeSteps*: the number of timesteps into which the `integrationTime` is broken into
 - *xmin*: (etc.) initial conditions box bounds
 - *clipToBounds*: renders only the portion of the solution curves which lies within the initial conditions box
-- *showBounds*: whether to show the initial conditions box bounds 
 - *integrateForward*: if selected, integrate over positive times i.e. the time interval [0, `integrationTime`], otherwise integrate over the time interval [-`integrationTime`/2, `integrationTime`/2]
-
+- *enableBounds*: if disabled, the initial conditions box is locked (allowing the camera to be moved within the box) 
 
 ## Rendering parameters
 
+- *showBounds*: whether to show the initial conditions box bounds 
 - *exposure*: controls overall brightness of image
 - *gamma*: controls gamma correction factor of image
 - *contrast*: controls image contrast
@@ -79,3 +79,8 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
 - *RECORD*: start/stop recording a gif of the viewport interaction
 - *RECORD PERIOD*: record a gif of one dash period (for repeating gifs of the animated dash motion)
 - *record_realtime*: whether to record the real-time interaction to the gif, or at the maximum frame-rate
+- *RENDER ANIM*: start recording a gif of a number of automatically rendered animated frames (the number specified via `anim_frames`). Each frame renders for the number of iterations specified via `maxIterations`. The camera can optionally (via `anim_enable_turntable`) be moved in a turntable motion through a specified number of degrees `anim_turntable_degrees` during the animation. The uniform float variable `animFraction` is available in the shader, which equals the number of elapsed frames divided by the total number of frames. At the end of the animation, a GIF is rendered (which may take some time) and saved to the downloads folder with a standard name.
+- *CANCEL ANIM*: start 
+- *anim_frames*: how many animation frames to render in the generated GIF
+- *anim_enable_turntable*: whether to move the camera in a turntable sweep motion during the animation
+- *anim_turntable_degrees*: if turntable is enabled, how many degrees to rotate through

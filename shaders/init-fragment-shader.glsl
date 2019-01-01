@@ -7,6 +7,7 @@ uniform float tubeWidth;
 uniform bool tubeSpread;
 uniform vec3 boundsMin;
 uniform vec3 boundsMax;
+uniform float animFraction;
 
 layout(location = 0) out vec4 gbuf_pos;
 layout(location = 1) out vec4 gbuf_rgb;

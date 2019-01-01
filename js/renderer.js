@@ -85,6 +85,7 @@ var Renderer = function()
     // rendering settings
     this.settings.clipToBounds = true;
     this.settings.showBounds = true;
+    this.settings.enableBounds = true;
     this.settings.exposure = -1.0;
     this.settings.gamma = 2.2;
     this.settings.contrast = 1.0;
@@ -106,6 +107,10 @@ var Renderer = function()
     this.settings.dash_speed = 10.0;
     this.settings.dash_size = 0.5;
     this.settings.dashes = false;
+
+    this.settings.anim_frames = 240;
+    this.settings.anim_enable_turntable = true;
+    this.settings.anim_turntable_degrees = 360.0;
     
     // Create a quad VBO for rendering textures
     this.quadVbo = this.createQuadVbo();
@@ -567,12 +572,17 @@ Renderer.prototype.trace = function(integrate_forward)
     // Final composite of normalized fluence to window
     this.raysTraced += this.settings.rayBatch*this.settings.rayBatch;
     this.wavesTraced += 1;
+
+    if (fibre.animation_rendering)
+    {
+        fibre._anim_perframe_iteration++;
+    }
 }
 
 Renderer.prototype.render = function()
 {
     if (!this.enabled) return;
-    if (this.gif_rendering) return;
+
     var gl = GLU.gl;
     var timer_start = performance.now();
 
@@ -612,6 +622,17 @@ Renderer.prototype.render = function()
         this.traceProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
         this.traceProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
         this.traceProgram.uniformI("clipToBounds", this.settings.clipToBounds);
+
+        if (fibre.animation_rendering)
+        {
+            this.settings.anim_frames = Math.floor(this.settings.anim_frames);
+            let anim_fraction = fibre._anim_frame_counter / this.settings.anim_frames;
+            this.traceProgram.uniformF("animFraction", anim_fraction);
+        }
+        else
+        {
+            this.traceProgram.uniformF("animFraction", 0.0);
+        }
     }
 
     // Prepare line drawing program
@@ -645,6 +666,7 @@ Renderer.prototype.render = function()
     }
 
     // Trace solution curves and render into fluence buffer
+    this.settings.maxIterations = Math.floor(this.settings.maxIterations);
     if (this.traceProgram && this.wavesTraced<this.settings.maxIterations)
     {
         let integrate_forward = true;
@@ -687,7 +709,7 @@ Renderer.prototype.render = function()
         else
             this.boxProgram.uniform4Fv("color", [1.0-C[0], 1.0-C[1], 1.0-C[2], 0.25]);
 
-        if ((boundsHit && boundsHit.hit) || this.settings.showBounds)
+        if ((boundsHit && boundsHit.hit && !this.animation_rendering) || this.settings.showBounds)
         {
             if (!this.boxVbo)
             {
@@ -720,19 +742,56 @@ Renderer.prototype.render = function()
     // GIF rendering
     if (fibre.GIF)
     {
-        let gif_time_ms = performance.now() - fibre.gif_timer_start_ms;
-        if (gif_time_ms >= fibre.gif_timer_max_duration)
+        if (fibre.gif_rendering)
         {
-            fibre.gif_rendering = true;
-            fibre.GIF.render();
-            fibre.GIF = null;
+            let gif_time_ms = performance.now() - fibre.gif_timer_start_ms;
+            if (gif_time_ms >= fibre.gif_timer_max_duration)
+            {
+                fibre.GIF.render();
+                fibre.gif_rendering = false;
+            }
+            else
+            {   
+                let since_last_gif_frame_ms = performance.now() - fibre.gif_last_frame_ms;
+                let gifframe_ms = this.settings.record_realtime ? Math.ceil(since_last_gif_frame_ms) : 41;
+                fibre.GIF.addFrame(gl, {delay: gifframe_ms, copy: true});
+                fibre.gif_last_frame_ms = performance.now();
+            }
         }
-        else
-        {   
-            let since_last_gif_frame_ms = performance.now() - fibre.gif_last_frame_ms;
-            let gifframe_ms = this.settings.record_realtime ? Math.ceil(since_last_gif_frame_ms) : 41;
-            fibre.GIF.addFrame(gl, {delay: gifframe_ms, copy: true});
-            fibre.gif_last_frame_ms = performance.now();
+
+        if (fibre.animation_rendering)
+        {
+            if (fibre._anim_frame_counter == this.settings.anim_frames)
+            {
+                fibre.GIF.render();
+                fibre.animation_rendering = false;
+            }
+
+            if (fibre._anim_perframe_iteration >= this.settings.maxIterations)
+            {
+                fibre.GIF.addFrame(gl, {delay: 30, copy: true});
+                if (this.settings.anim_enable_turntable)
+                {
+                    let anim_fraction = fibre._anim_frame_counter / this.settings.anim_frames;
+                    let anim_turntable_angle = anim_fraction * this.settings.anim_turntable_degrees;
+                    let rad = anim_turntable_angle * Math.PI / 180.0;
+                    let px = fibre._anim_x.clone();
+                    let py = fibre._anim_y.clone();
+                    py.multiplyScalar(fibre._anim_r * Math.sin(rad));
+                    px.multiplyScalar(fibre._anim_r * Math.cos(rad));
+                    let p = px.clone();
+                    p.add(py);
+                    p.add(fibre._anim_o);
+                    fibre.camera.position.copy(p);
+                    fibre.camera.updateProjectionMatrix();
+                    fibre.camControls.update();
+                }
+
+                fibre._anim_perframe_iteration = 0;
+                fibre._anim_frame_counter++;
+                this.reset();
+                fibre.render_dirty = true;
+            }
         }
     }
 
