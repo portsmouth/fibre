@@ -76,11 +76,11 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
 - *dash_spacing*: space between animated dashes, relative to `gridSpace`
 - *dash_size*: fractional size of dash, in [0, 1]
 - *dash_speed*: rate of dash motion, in dashes per second
-- *RECORD*: start/stop recording a gif of the viewport interaction
-- *RECORD PERIOD*: record a gif of one dash period (for repeating gifs of the animated dash motion)
-- *record_realtime*: whether to record the real-time interaction to the gif, or at the maximum frame-rate
-- *RENDER ANIM*: start recording a gif of a number of automatically rendered animated frames (the number specified via `anim_frames`). Each frame renders for the number of iterations specified via `maxIterations`. The camera can optionally (via `anim_enable_turntable`) be moved in a turntable motion through a specified number of degrees `anim_turntable_degrees` during the animation. The uniform float variable `animFraction` is available in the shader, which equals the number of elapsed frames divided by the total number of frames. At the end of the animation, a GIF is rendered (which may take some time) and saved to the downloads folder with a standard name.
-- *CANCEL ANIM*: start 
+- *RECORD*: start/stop recording a GIF of the viewport interaction
+- *RECORD PERIOD*: record a GIF of one dash period (for repeating GIFs of the animated dash motion)
+- *record_realtime*: whether to record the real-time interaction to the GIF, or at the maximum frame-rate
+- *RENDER ANIM*: start recording a GIF of a number of automatically rendered animated frames (the number specified via `anim_frames`). Each frame renders for the number of iterations specified via `maxIterations`. The camera can optionally (via `anim_enable_turntable`) be moved in a turntable motion through a specified number of degrees `anim_turntable_degrees` during the animation. The uniform float variable `animFraction` is available in the shader, which equals the number of elapsed frames divided by the total number of frames. At the end of the animation, a GIF is rendered (which may take some time) and saved to the downloads folder with a standard name.
+- *CANCEL ANIM*: cancel the current animation recording 
 - *anim_frames*: how many animation frames to render in the generated GIF
 - *anim_enable_turntable*: whether to move the camera in a turntable sweep motion during the animation
 - *anim_turntable_degrees*: if turntable is enabled, how many degrees to rotate through
