@@ -104,7 +104,7 @@ var Fibre = function(editor, error_editor)
     // Attempt to load from current URL
     if (!this.load_url(window.location.href))
     {
-        this.presets.load_preset('Arneodo attractor');
+        this.presets.load_preset('Lorenz attractor');
     }
     
     // Do initial resize:
