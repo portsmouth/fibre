@@ -37,6 +37,60 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
  - H key to hide/show the sidebar UI
  - F11 key to enter/exit fullscreen mode
 
+## GLSL format
+
+The GLSL code defining the vector field must have the following form:
+
+```glsl
+// Mandatory function giving the vector field x, y, z components as a function of 3D spatial position.
+// Optionally, these can also be a function of the supplied integration time t (generating a "non-autonomous" system)
+vec3 velocity(vec3 p, float t)
+{
+    // example code (Thomas attractor)
+    vec3 v;
+    float x = p.x;
+    float y = p.y;
+    float z = p.z;
+    const float b = 0.15; // (value is draggable in the code editor)
+    v.x = -b*x + sin(y);
+    v.y = -b*y + sin(z);
+    v.z = -b*z + sin(x);
+    return v;
+}
+
+// Mandatory function giving the diffuse color components associated with each point in space,
+// and/or integration time.
+vec3 color(vec3 p, float t)
+{
+    // example code
+    const vec3 colLo = vec3(254,45,73) / 255.0;
+    const vec3 colHi = vec3(5,138,255) / 255.0;
+    float lerp = t/(5.0+t);
+    return (1.0-lerp)*colLo + lerp*colHi;
+}
+
+// Optional function (called if the word "teleport" appears anywhere in the code)
+// which can be used to displace the current point in the integration trajectory an arbitrary amount, 
+// without drawing a line between the prev position and the updated position (thus introducing a broken line).
+// The function should determine whether such a "teleportation" event is required, 
+// given the current integration point p and the previous point pprev, and if so displace p in-place and return true 
+// (otherwise, return false).
+// This can be used to implement, for example, periodic boundary conditions, as shown below.
+bool teleport(inout vec3 p, in vec3 pprev)
+{
+    // example code
+    const float L = 1.0;
+    const float eps = 1.0e-2 * L;
+    if (p.x < -L + eps) { p.x += 2.0*L - eps; return true; }
+    if (p.x >  L - eps) { p.x -= 2.0*L + eps; return true; }
+    if (p.y < -L + eps) { p.y += 2.0*L - eps; return true; }
+    if (p.y >  L - eps) { p.y -= 2.0*L + eps; return true; }
+    if (p.z < -L + eps) { p.z += 2.0*L - eps; return true; }
+    if (p.z >  L - eps) { p.z -= 2.0*L + eps; return true; }
+    return false;
+}
+```
+
 ## Integration parameters
 
 - *gridSpace*: the spacing between start points within the initial conditions box, relative to the box maximum extents
@@ -84,3 +138,4 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
 - *anim_frames*: how many animation frames to render in the generated GIF
 - *anim_enable_turntable*: whether to move the camera in a turntable sweep motion during the animation
 - *anim_turntable_degrees*: if turntable is enabled, how many degrees to rotate through
+

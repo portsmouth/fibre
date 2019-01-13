@@ -104,7 +104,7 @@ var Fibre = function(editor, error_editor)
     // Attempt to load from current URL
     if (!this.load_url(window.location.href))
     {
-        this.presets.load_preset('Lorenz attractor');
+        this.presets.load_preset('Aizawa attractor');
     }
     
     // Do initial resize:
@@ -121,7 +121,7 @@ var Fibre = function(editor, error_editor)
 */
 Fibre.prototype.getVersion = function()
 {
-	return [1, 1, 0];
+	return [1, 2, 0];
 }
 
 Fibre.prototype.handleEvent = function(event)
@@ -1098,6 +1098,13 @@ Fibre.prototype.onkeydown = function(event)
             this.camera.position.add(move);
             this.camControls.target.add(move);
             this.reset(true);
+            break;
+        }
+
+        case 74: // J key: dump current curve data
+        {
+            if (!this.camControls.enabled || fibre.editing) break;
+            this.renderer.dumpCurves();
             break;
         }
 	}

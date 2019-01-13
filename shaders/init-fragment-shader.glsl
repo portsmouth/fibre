@@ -4,7 +4,6 @@ uniform sampler2D RngData;
 
 uniform float gridSpace;
 uniform float tubeWidth;
-uniform bool tubeSpread;
 uniform vec3 boundsMin;
 uniform vec3 boundsMax;
 uniform float animFraction;
@@ -24,7 +23,7 @@ in vec2 vTexCoord;
 // Dynamically injected code
 //////////////////////////////////////////////////////////////
 
-USER_CODE
+_USER_CODE_
 
 
 /// GLSL floating point pseudorandom number generator, from
@@ -50,7 +49,6 @@ void main()
     vec3 boundsExtent = boundsMax - boundsMin;
     float scale = max(max(boundsExtent.x, boundsExtent.y), boundsExtent.z);
     vec3 X = boundsMin;
-    vec3 offset = vec3(0.0);
 
     if (gridSpace < FLT_EPSILON)
     {
@@ -72,15 +70,7 @@ void main()
     float phi   = rand(seed)*2.0*M_PI;
     float Sp = sin(phi);
     float Cp = cos(phi);
-    vec3 dX = tubeWidth * vec3(St*Cp, St*Sp, Ct);
-    if (tubeSpread)
-    {
-        X += dX;
-    }
-    else
-    {
-        offset = dX;
-    }
+    vec3 offset = tubeWidth * vec3(St*Cp, St*Sp, Ct);
 
     gbuf_pos = vec4(X, 0.0);
     gbuf_rgb = vec4(color(X, 0.0), 1.0);

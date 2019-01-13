@@ -92,7 +92,6 @@ GUI.prototype.createguiSettings = function()
     this.integratorFolder.add(renderer.settings, 'integrationTime', 0.1, 1000.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'maxTimeSteps', 4, 4096).onChange( function(value) { fibre.manip_enabled = false; renderer.settings.maxTimeSteps = Math.floor(value); renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     
-    //this.integratorFolder.add(renderer.settings, 'tubeSpread').onChange( function(value) { renderer.reset(true); } )
     this.integratorFolder.add(renderer.settings, 'xmin').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_xmax() < value) renderer.settings.xmin = fibre.get_xmax(); else fibre.set_xmin(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'xmax').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_xmin() > value) renderer.settings.xmax = fibre.get_xmin(); else fibre.set_xmax(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'ymin').onChange( function(value) { fibre.manip_enabled = false; if (fibre.get_ymax() < value) renderer.settings.ymin = fibre.get_ymax(); else fibre.set_ymin(value); }).onFinishChange( function(value) { fibre.manip_enabled = true; } );

@@ -137,7 +137,6 @@ uniform sampler2D RngData;
 
 uniform float gridSpace;
 uniform float tubeWidth;
-uniform bool tubeSpread;
 uniform vec3 boundsMin;
 uniform vec3 boundsMax;
 uniform float animFraction;
@@ -157,7 +156,7 @@ in vec2 vTexCoord;
 // Dynamically injected code
 //////////////////////////////////////////////////////////////
 
-USER_CODE
+_USER_CODE_
 
 
 /// GLSL floating point pseudorandom number generator, from
@@ -183,7 +182,6 @@ void main()
     vec3 boundsExtent = boundsMax - boundsMin;
     float scale = max(max(boundsExtent.x, boundsExtent.y), boundsExtent.z);
     vec3 X = boundsMin;
-    vec3 offset = vec3(0.0);
 
     if (gridSpace < FLT_EPSILON)
     {
@@ -205,15 +203,7 @@ void main()
     float phi   = rand(seed)*2.0*M_PI;
     float Sp = sin(phi);
     float Cp = cos(phi);
-    vec3 dX = tubeWidth * vec3(St*Cp, St*Sp, Ct);
-    if (tubeSpread)
-    {
-        X += dX;
-    }
-    else
-    {
-        offset = dX;
-    }
+    vec3 offset = tubeWidth * vec3(St*Cp, St*Sp, Ct);
 
     gbuf_pos = vec4(X, 0.0);
     gbuf_rgb = vec4(color(X, 0.0), 1.0);
@@ -301,7 +291,6 @@ uniform sampler2D EdgDataB;
 uniform sampler2D OffData;
 uniform mat4 u_projectionMatrix;
 uniform mat4 u_modelViewMatrix;
-uniform bool tubeSpread;
 
 in vec3 TexCoord;
 
@@ -316,26 +305,25 @@ void main()
     // (i.e. the geometry defined by this vertex shader is stored in textures)
     vec4 posA   = texture(PosDataA, TexCoord.xy);
     vec4 posB   = texture(PosDataB, TexCoord.xy);
-    vec3 colorA = texture(RgbDataA, TexCoord.xy).xyz;
-    vec3 colorB = texture(RgbDataB, TexCoord.xy).xyz;
+    vec4 colorA = texture(RgbDataA, TexCoord.xy);
+    vec4 colorB = texture(RgbDataB, TexCoord.xy);
     vec3 edgA   = texture(EdgDataA, TexCoord.xy).xyz;
     vec3 edgB   = texture(EdgDataB, TexCoord.xy).xyz;
     vec3 offset = texture(OffData,  TexCoord.xy).xyz;
 
-    // Line segment vertex position (either posA or posB)
-    vec3 pos = mix(posA.xyz, posB.xyz, TexCoord.z);
-    if (!tubeSpread)
+    vec3 pos;
+    _LINE_TELEPORT_CODE_
     {
-        pos += offset;
+        // Line segment vertex position (either posA or posB according to end-point)
+        pos = mix(posA.xyz, posB.xyz, TexCoord.z);
     }
+    pos += offset;
 
     gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(pos, 1.0);
-    vColor = mix(colorA, colorB, TexCoord.z);
+    vColor = mix(colorA.xyz, colorB.xyz, TexCoord.z);
     t = mix(posA.w, posB.w, TexCoord.z);
     T = mix(edgA, edgB, TexCoord.z);
     D = offset;
-
-
 }
 `,
 
@@ -445,7 +433,7 @@ bool boxHit( in vec3 rayPos, in vec3 rayDir, in vec3 bbMin, in vec3 bbMax,
 // Dynamically injected code
 //////////////////////////////////////////////////////////////
 
-USER_CODE
+_USER_CODE_
 
 
 //////////////////////////////////////////////////////////////
@@ -461,6 +449,8 @@ void main()
 
     float dt = timestep;
     if (!integrateForward) dt *= -1.f;
+
+    bool teleported = false;
 
     if (!clipToBounds || t>=0.0)
     {
@@ -480,11 +470,19 @@ void main()
             float t0, t1;
             boxHit(X.xyz, dir, boundsMin, boundsMax, t0, t1);
             float l = min(t1, dx);
-            X.xyz += l*dir;
+            vec3 Xnew = X.xyz + l*dir;
+            vec3 Xtmp = Xnew;   
+            teleported = teleport(Xtmp, X.xyz);
+            if (teleported) Xnew = Xtmp;
+            X.xyz = Xnew;
         }
         else
         {
-            X.xyz += dX;
+            vec3 Xnew = X.xyz + dX;
+            vec3 Xtmp = Xnew;
+            teleported = teleport(Xtmp, X.xyz);
+            if (teleported) Xnew = Xtmp;
+            X.xyz = Xnew;
         }
         dX /= max(dx, FLT_EPSILON);
     }
@@ -492,7 +490,7 @@ void main()
     vec3 c = color(X.xyz, X.w);
 
     gbuf_pos = X;
-    gbuf_rgb = vec4(c, 1.0);
+    gbuf_rgb = vec4(c, teleported ? 0.0 : 1.0);
     gbuf_rnd = rnd;
     gbuf_edg = vec4(dX, 1.0);
 }

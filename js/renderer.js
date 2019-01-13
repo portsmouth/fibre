@@ -50,6 +50,7 @@ RayState.prototype.detach = function(fbo)
     fbo.detachTexture(3);
 }
 
+
 var Renderer = function()
 {
     this.gl = GLU.gl;
@@ -73,7 +74,6 @@ var Renderer = function()
     this.settings.integrateForward = true;
     this.settings.gridSpace = 0.1;
     this.settings.tubeWidth = 0.001;
-    this.settings.tubeSpread = false;
     this.settings.record_realtime = true;
     this.settings.xmin = 0.0001;
     this.settings.xmax = 0.0001;
@@ -307,13 +307,11 @@ Renderer.prototype.reset = function(no_recompile)
 Renderer.prototype.compileShaders = function()
 {
     // internal shaders
-    this.lineProgram  = new GLU.Shader('line',  this.shaderSources, null);
     this.boxProgram   = new GLU.Shader('box',   this.shaderSources, null);
     this.compProgram  = new GLU.Shader('comp',  this.shaderSources, null);
     this.passProgram  = new GLU.Shader('pass',  this.shaderSources, null);
 
-    if (!this.lineProgram.program || 
-        !this.boxProgram.program  || 
+    if (!this.boxProgram.program  || 
         !this.compProgram.program || 
         !this.passProgram.program)
     {   
@@ -323,10 +321,35 @@ Renderer.prototype.compileShaders = function()
 
     let glsl = fibre.getGlsl();
 
+    // Set up line shader according to whether teleportation is enabled:
+    replacements = {};
+    if (glsl.indexOf("teleport(") == -1)
+    {
+        glsl += '\nbool teleport(inout vec3 p, in vec3 pold) { return false; }\n';
+        replacements._LINE_TELEPORT_CODE_ = ``;
+    }
+    else
+    {
+        replacements._LINE_TELEPORT_CODE_ = `
+        if (colorB.w == 0.0)
+        {
+            // segment was teleported to posB, so render a zero length segment at posA
+            pos = posA.xyz;
+        }
+        else
+        `;
+    }
+    this.lineProgram  = new GLU.Shader('line',  this.shaderSources, replacements);
+    if (!this.lineProgram.program)
+    {
+        this.traceProgram = null;
+        return;
+    }
+
     // Copy the current scene and material routines into the source code
     // of the trace fragment shader
     replacements = {};
-    replacements.USER_CODE = glsl;
+    replacements._USER_CODE_ = glsl;
 
     // shaderSources is a dict from name (e.g. "trace")
     // to a dict {v:vertexShaderSource, f:fragmentShaderSource}
@@ -380,6 +403,31 @@ Renderer.prototype.initStates = function()
         }
         this.rayVbo.copy(vboData);
     }
+}
+
+
+Renderer.prototype.dumpCurves = function()
+{
+    let gl = GLU.gl;
+    let fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+
+    let texture = this.rayStates[this.currentState].posTex;
+
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D, texture.glName, 0);
+
+    let canRead = (gl.checkFramebufferStatus(gl.FRAMEBUFFER) == gl.FRAMEBUFFER_COMPLETE);
+    if (canRead)
+    {
+        let size = this.settings.rayBatch;
+        let pixels = new Float32Array(size * size * 4);
+        gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, pixels);
+        console.log(pixels);
+    }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
 Renderer.prototype.getStats = function()
@@ -475,7 +523,6 @@ Renderer.prototype.trace = function(integrate_forward)
         this.initProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
         this.initProgram.uniformF("gridSpace", scale*this.settings.gridSpace);
         this.initProgram.uniformF("tubeWidth", scale*Math.max(this.settings.tubeWidth, 1.0e-6));
-        this.initProgram.uniformI("tubeSpread", this.settings.tubeSpread);
 
         this.quadVbo.draw(this.initProgram, gl.TRIANGLE_FAN);
         this.currentState = 1 - this.currentState;

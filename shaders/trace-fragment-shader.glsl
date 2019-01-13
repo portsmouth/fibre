@@ -37,7 +37,7 @@ bool boxHit( in vec3 rayPos, in vec3 rayDir, in vec3 bbMin, in vec3 bbMax,
 // Dynamically injected code
 //////////////////////////////////////////////////////////////
 
-USER_CODE
+_USER_CODE_
 
 
 //////////////////////////////////////////////////////////////
@@ -53,6 +53,8 @@ void main()
 
     float dt = timestep;
     if (!integrateForward) dt *= -1.f;
+
+    bool teleported = false;
 
     if (!clipToBounds || t>=0.0)
     {
@@ -72,11 +74,19 @@ void main()
             float t0, t1;
             boxHit(X.xyz, dir, boundsMin, boundsMax, t0, t1);
             float l = min(t1, dx);
-            X.xyz += l*dir;
+            vec3 Xnew = X.xyz + l*dir;
+            vec3 Xtmp = Xnew;   
+            teleported = teleport(Xtmp, X.xyz);
+            if (teleported) Xnew = Xtmp;
+            X.xyz = Xnew;
         }
         else
         {
-            X.xyz += dX;
+            vec3 Xnew = X.xyz + dX;
+            vec3 Xtmp = Xnew;
+            teleported = teleport(Xtmp, X.xyz);
+            if (teleported) Xnew = Xtmp;
+            X.xyz = Xnew;
         }
         dX /= max(dx, FLT_EPSILON);
     }
@@ -84,7 +94,9 @@ void main()
     vec3 c = color(X.xyz, X.w);
 
     gbuf_pos = X;
-    gbuf_rgb = vec4(c, 1.0);
+    gbuf_rgb = vec4(c, teleported ? 0.0 : 1.0);
     gbuf_rnd = rnd;
     gbuf_edg = vec4(dX, 1.0);
 }
+
+
