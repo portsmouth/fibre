@@ -79,14 +79,16 @@ vec3 color(vec3 p, float t)
 bool teleport(inout vec3 p, in vec3 pprev)
 {
     // example code
-    const float L = 1.0;
-    const float eps = 1.0e-2 * L;
-    if (p.x < -L + eps) { p.x += 2.0*L - eps; return true; }
-    if (p.x >  L - eps) { p.x -= 2.0*L + eps; return true; }
-    if (p.y < -L + eps) { p.y += 2.0*L - eps; return true; }
-    if (p.y >  L - eps) { p.y -= 2.0*L + eps; return true; }
-    if (p.z < -L + eps) { p.z += 2.0*L - eps; return true; }
-    if (p.z >  L - eps) { p.z -= 2.0*L + eps; return true; }
+    const float Xmin = 0.0; const float Xmax = 1.0; const float DX = Xmax - Xmin;
+    const float Ymin = 0.0; const float Ymax = 1.0; const float DY = Ymax - Ymin;
+    const float Zmin = 0.0; const float Zmax = 1.0; const float DZ = Zmax - Zmin;
+    const float eps = 1.0e-2 * min(min(DX, DY), DZ);
+    if (p.x < Xmin + eps) { p.x += DX - eps; return true; }
+    if (p.x > Xmax - eps) { p.x -= DX + eps; return true; }
+    if (p.y < Ymin + eps) { p.y += DY - eps; return true; }
+    if (p.y > Ymax - eps) { p.y -= DY + eps; return true; }
+    if (p.z < Zmin + eps) { p.z += DZ - eps; return true; }
+    if (p.z > Zmax - eps) { p.z -= DZ + eps; return true; }
     return false;
 }
 ```
