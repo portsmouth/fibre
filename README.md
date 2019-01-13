@@ -65,16 +65,16 @@ vec3 color(vec3 p, float t)
     // example code
     const vec3 colLo = vec3(254,45,73) / 255.0;
     const vec3 colHi = vec3(5,138,255) / 255.0;
-    float lerp = t/(5.0+t);
+    float lerp = t/(float(abs(5.0))+t);
     return (1.0-lerp)*colLo + lerp*colHi;
 }
 
 // Optional function (called if the word "teleport" appears anywhere in the code)
 // which can be used to displace the current point in the integration trajectory an arbitrary amount, 
-// without drawing a line between the prev position and the updated position (thus introducing a broken line).
+// without drawing a line between the previous position and the updated position (thus introducing a broken line).
 // The function should determine whether such a "teleportation" event is required, 
-// given the current integration point p and the previous point pprev, and if so displace p in-place and return true 
-// (otherwise, return false).
+// given the current integration point p and the previous point pprev, 
+// and if so displace p in-place and return true (otherwise, return false).
 // This can be used to implement, for example, periodic boundary conditions, as shown below.
 bool teleport(inout vec3 p, in vec3 pprev)
 {
