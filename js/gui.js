@@ -294,7 +294,7 @@ GUI.prototype.createguiSettings = function()
     }};
     let button_cancelanim_ui = this.advancedFolder.add(button_cancelanim, 'cancelanim');
     button_cancelanim_ui.__li.innerText = 'CANCEL ANIM';
-    button_cancelanim_ui.__li.style.backgroundColor = 'pink';
+    button_cancelanim_ui.__li.style.backgroundColor = 'red';
 
     this.advancedFolder.add(renderer.settings, 'anim_frames', 30, 4000).onChange(function(value) { fibre.render_dirty = true; fibre.manip_enabled = false; }).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.advancedFolder.add(renderer.settings, 'anim_enable_turntable').onChange();
