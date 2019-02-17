@@ -962,6 +962,17 @@ Fibre.prototype.onDocumentRightClick = function(event)
 
 }
 
+String.prototype.hashCode = function() {
+  var hash = 0, i, chr;
+  if (this.length === 0) return hash;
+  for (i = 0; i < this.length; i++) {
+    chr   = this.charCodeAt(i);
+    hash  = ((hash << 5) - hash) + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+};
+
 Fibre.prototype.onkeydown = function(event)
 {
     var charCode = (event.which) ? event.which : event.keyCode;
@@ -1057,7 +1068,12 @@ Fibre.prototype.onkeydown = function(event)
         {
             if (fibre.editing) break;
             var link = document.createElement('a');
-            link.download = "fibre.png";
+            let state = fibre.get_state();
+            let objJsonStr = fibre.get_stringified_state(state);
+            let objJsonB64 = btoa(objJsonStr);
+            let state_id = objJsonB64.hashCode().toString();
+            let filename = `fibre-screenshot${state_id}.png`;
+            link.download = filename;
             this.render_canvas.toBlob(function(blob){
                     link.href = URL.createObjectURL(blob);
                     var event = new MouseEvent('click');
@@ -1104,7 +1120,8 @@ Fibre.prototype.onkeydown = function(event)
         case 74: // J key: dump current curve data
         {
             if (!this.camControls.enabled || fibre.editing) break;
-            this.renderer.dumpCurves();
+            this.renderer.enableDumpCurves();
+            this.reset(true);
             break;
         }
 	}
@@ -1135,6 +1152,7 @@ Fibre.prototype.toggleRecord = function(command)
                 link.href = URL.createObjectURL(blob);
                 var event = new MouseEvent('click');
                 link.dispatchEvent(event);
+                document.body.removeChild(link);
                 ME.gif_rendering = false;
                 this.GIF = null;
         });

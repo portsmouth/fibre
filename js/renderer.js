@@ -36,10 +36,6 @@ RayState.prototype.attach = function(fbo)
     fbo.attachTexture(this.rgbTex, 1);
     fbo.attachTexture(this.rngTex, 2);
     fbo.attachTexture(this.edgTex, 3);
-    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE)
-    {
-        GLU.fail("Invalid framebuffer");
-    }
 }
 
 RayState.prototype.detach = function(fbo)
@@ -66,6 +62,7 @@ var Renderer = function()
     this.offsetTex = null;
     this.depthBuffer = null;
     this.fluenceBuffer = null;
+    this.dumpingCurves = false;
 
     // integrator settings
     this.settings.maxTimeSteps = 128;
@@ -118,7 +115,7 @@ var Renderer = function()
     this.cornerVbos = null;
 
     // Initialize raytracing shaders
-    this.shaderSources = GLU.resolveShaderSource(["init", "trace", "line", "box", "comp", "pass"]);
+    this.shaderSources = GLU.resolveShaderSource(["init", "dumpinit", "trace", "line", "box", "comp", "pass"]);
 
     // Initialize GL
     this.ray_fbo = new GLU.RenderTarget();
@@ -368,6 +365,8 @@ Renderer.prototype.compileShaders = function()
         return;
     }
 
+    this.dumpinitProgram  = new GLU.Shader('dumpinit',  this.shaderSources, replacements);
+
     this.enabled = true;
     fibre.disable_errors();
 }
@@ -405,30 +404,159 @@ Renderer.prototype.initStates = function()
     }
 }
 
+Renderer.prototype.enableDumpCurves = function()
+{
+    this.dumpingCurves = true;
+    let size = this.settings.rayBatch;
+    let num_curves = size * size;
+    this.curves = []
+    for (var c=0; c<num_curves; c++) 
+    {
+        this.curves.push([]);
+    }
+}
 
-Renderer.prototype.dumpCurves = function()
+String.prototype.hashCode = function() {
+  var hash = 0, i, chr;
+  if (this.length === 0) return hash;
+  for (i = 0; i < this.length; i++) {
+    chr   = this.charCodeAt(i);
+    hash  = ((hash << 5) - hash) + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+};
+
+Renderer.prototype.recordCurves = function()
 {
     let gl = GLU.gl;
-    let fb = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    this.ray_fbo.bind();
 
-    let texture = this.rayStates[this.currentState].posTex;
+    let current = this.currentState;
+    let next = 1 - current;
+    let texture = this.rayStates[next].posTex;
 
-    gl.framebufferTexture2D(
-        gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-        gl.TEXTURE_2D, texture.glName, 0);
-
-    let canRead = (gl.checkFramebufferStatus(gl.FRAMEBUFFER) == gl.FRAMEBUFFER_COMPLETE);
-    if (canRead)
+    //let canRead = (gl.checkFramebufferStatus(gl.FRAMEBUFFER) == gl.FRAMEBUFFER_COMPLETE);
+    //if (canRead)
     {
         let size = this.settings.rayBatch;
         let pixels = new Float32Array(size * size * 4);
         gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, pixels);
-        console.log(pixels);
-    }
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        let num_curves = size * size;
+        for (var c=0; c<num_curves; c++) 
+        {
+            let x = pixels[4*c+0];
+            let y = pixels[4*c+1];
+            let z = pixels[4*c+2];
+            this.curves[c].push(x);
+            this.curves[c].push(y);
+            this.curves[c].push(z);
+        }
+    }
 }
+
+Renderer.prototype.dumpCurves = function()
+{
+    // generate an .ass file containing the curves data
+    let ass = `;
+options
+{
+    AA_samples 3
+    outputs "RGBA RGBA gf dr"
+    xres 1024
+    yres 1024
+}
+
+gaussian_filter
+{
+    name gf
+    width 2
+}
+
+driver_exr
+{
+    name dr
+    compression "zip"
+    half_precision off
+    tiled off
+    preserve_layer_name off
+    autocrop off
+    append off
+}
+
+lambert
+{
+    name lambert_shader
+}
+`;
+
+    for (var c=0; c<this.curves.length; c++) 
+    {
+        let curve_name = 'curve' + c.toString();
+        let curve = this.curves[c];
+        let num_cvs = curve.length / 3;
+        if (num_cvs < 3) continue;
+        ass += `
+curves 
+{
+    name ${curve_name}
+    num_points ${num_cvs}
+    points ${num_cvs} 1 POINT
+`;
+        for (var cv=0; cv<num_cvs; cv++)
+        {
+            let x = curve[3*cv+0].toString();
+            let y = curve[3*cv+1].toString();
+            let z = curve[3*cv+2].toString();
+            ass += `${x} ${y} ${z} `;
+        }
+        
+        ass += `
+    radius ${num_cvs-2} 1 FLOAT
+`;
+        for (var cv=0; cv<num_cvs-2; cv++)
+        {
+            let radius = this.tubeWidthWs();
+            ass += `${radius} `;
+        } // cv
+
+        ass += `
+    basis "catmull-rom"
+    mode "ribbon"
+    min_pixel_width 0
+    receive_shadows on
+    self_shadows on
+    matrix
+     1 0 0 0
+     0 1 0 0
+     0 0 1 0
+     0 0 0 1
+    shader lambert_shader
+    opaque on
+    matte off
+ }
+ `
+    } // curve
+
+    let state = fibre.get_state();
+    let objJsonStr = fibre.get_stringified_state(state);
+    let objJsonB64 = btoa(objJsonStr);
+    let state_id = objJsonB64.hashCode().toString();
+
+    let filename = `fibre-curves${state_id}.ass`;
+    var link = document.createElement('a');
+    link.download = filename;
+
+    let blob = new Blob([ass], {type: 'text/csv'});
+    link.href = URL.createObjectURL(blob);
+    var event = new MouseEvent('click');
+    link.dispatchEvent(event);
+
+    delete this.curves;
+    this.dumpingCurves = false;
+}
+
 
 Renderer.prototype.getStats = function()
 {
@@ -486,6 +614,17 @@ Renderer.prototype.isEnabled = function()
 	return this.enabled;
 }
 
+Renderer.prototype.tubeWidthWs = function()
+{
+    let bounds = fibre.getBounds();
+    boundsMin = bounds.min;
+    boundsMax = bounds.max;
+    let scale = Math.max(boundsMax.x-boundsMin.x,
+                        boundsMax.y-boundsMin.y,
+                        boundsMax.z-boundsMin.z);
+    return scale*Math.max(this.settings.tubeWidth, 1.0e-6);
+}
+
 Renderer.prototype.trace = function(integrate_forward)
 {
     this.traceProgram.bind();
@@ -503,11 +642,6 @@ Renderer.prototype.trace = function(integrate_forward)
         this.rayStates[next].attach(this.ray_fbo);
         this.ray_fbo.attachTexture(this.offsetTex, 3);
 
-        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE)
-        {
-            GLU.fail("Invalid framebuffer");
-        }
-
         let bounds = fibre.getBounds();
         boundsMin = bounds.min;
         boundsMax = bounds.max;
@@ -516,18 +650,53 @@ Renderer.prototype.trace = function(integrate_forward)
                             boundsMax.z-boundsMin.z);
 
         this.quadVbo.bind();
-        this.initProgram.bind(); // Start all rays at emission point(s)
-        this.rayStates[current].rngTex.bind(0); // Read random seed from the current state
-        this.initProgram.uniformTexture("RngData", this.rayStates[current].rngTex);
-        this.initProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
-        this.initProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
-        this.initProgram.uniformF("gridSpace", scale*this.settings.gridSpace);
-        this.initProgram.uniformF("tubeWidth", scale*Math.max(this.settings.tubeWidth, 1.0e-6));
 
-        this.quadVbo.draw(this.initProgram, gl.TRIANGLE_FAN);
+        if (!this.dumpingCurves)
+        {
+            this.initProgram.bind(); // Start all rays at jittered points within initial box
+            this.rayStates[current].rngTex.bind(0); // Read random seed from the current state
+            this.initProgram.uniformTexture("RngData", this.rayStates[current].rngTex);
+            this.initProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
+            this.initProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
+            this.initProgram.uniformF("gridSpace", scale*this.settings.gridSpace);
+            this.initProgram.uniformF("tubeWidth", this.tubeWidthWs());
+            this.initProgram.uniformF("animFraction", 0.0);
+            this.quadVbo.draw(this.initProgram, gl.TRIANGLE_FAN);
+        }
+        else
+        {
+            this.dumpinitProgram.bind(); // start all rays on grid-point positions within initial box
+            this.rayStates[current].rngTex.bind(0); // Read random seed from the current state
+            this.dumpinitProgram.uniformTexture("RngData", this.rayStates[current].rngTex);
+            this.dumpinitProgram.uniform3Fv("boundsMin", [boundsMin.x, boundsMin.y, boundsMin.z]);
+            this.dumpinitProgram.uniform3Fv("boundsMax", [boundsMax.x, boundsMax.y, boundsMax.z]);
+            this.dumpinitProgram.uniformF("animFraction", 0.0);
+            this.dumpinitProgram.uniformI("fbRes", this.settings.rayBatch);
+
+            // Adjust spacing of 3d start-point grid so that the total number of grid points
+            // matches (as closely as possible) the number of curves traced. 
+            let gridSpace = scale*this.settings.gridSpace;
+            let nx = Math.max(1, (boundsMax.x - boundsMin.x) / Math.max(gridSpace, 1.0e-6));
+            let ny = Math.max(1, (boundsMax.y - boundsMin.y) / Math.max(gridSpace, 1.0e-6));
+            let nz = Math.max(1, (boundsMax.z - boundsMin.z) / Math.max(gridSpace, 1.0e-6));
+            let nxyz = nx * ny * nz;
+            let rescale = Math.pow(nxyz / (this.settings.rayBatch*this.settings.rayBatch), 0.333333);
+            nx /= rescale; nx = Math.max(1, Math.ceil(nx));
+            ny /= rescale; ny = Math.max(1, Math.ceil(ny));
+            nz /= rescale; nz = Math.max(1, Math.ceil(nz));
+            let grid_x = (boundsMax.x - boundsMin.x) / nx;
+            let grid_y = (boundsMax.y - boundsMin.y) / ny;
+            let grid_z = (boundsMax.z - boundsMin.z) / nz;
+            this.dumpinitProgram.uniformI("nx", nx);
+            this.dumpinitProgram.uniformI("ny", ny);
+            this.dumpinitProgram.uniformI("nz", nz);
+            this.dumpinitProgram.uniformF("grid_x", grid_x);
+            this.dumpinitProgram.uniformF("grid_y", grid_y);
+            this.dumpinitProgram.uniformF("grid_z", grid_z);
+            this.quadVbo.draw(this.dumpinitProgram, gl.TRIANGLE_FAN);
+        }
+
         this.currentState = 1 - this.currentState;
-        this.ray_fbo.detachTexture(3);
-        this.ray_fbo.unbind();
     }
     
     // Integrate progressively along the wavefront of rays
@@ -551,9 +720,10 @@ Renderer.prototype.trace = function(integrate_forward)
             this.traceProgram.bind();
             this.rayStates[current].bind(this.traceProgram);       // Use the current state as the initial conditions
             this.quadVbo.draw(this.traceProgram, gl.TRIANGLE_FAN); // Generate the next ray state
-            this.rayStates[next].detach(this.ray_fbo);
-            this.ray_fbo.unbind();
         }
+
+        if (this.dumpingCurves)
+            this.recordCurves();
 
         // Read this data to draw the next 'wavefront' of rays (i.e. line segments) into the wave buffer
         {
@@ -599,6 +769,9 @@ Renderer.prototype.trace = function(integrate_forward)
         pathLength += 1;
         this.currentState = next;
     }
+
+    if (this.dumpingCurves)
+        this.dumpCurves();
 
     // Add the wavebuffer contents, a complete set of rendered path segments, into the fluence buffer
     {
