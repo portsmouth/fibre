@@ -372,7 +372,7 @@ Fibre.prototype.compile_error = function(shaderName, shaderTypeStr, error_log)
         const m = errorRE.exec(error);
         if (m)
         {
-            const traceShaderLineStart = 20;
+            const traceShaderLineStart = 41;
             let lineNum = Math.max(m ? parseInt(m[1]) : 0, 0) - traceShaderLineStart;
             error = error.replace(errorRE, "");
             error = error.replace('ERROR:', "");
