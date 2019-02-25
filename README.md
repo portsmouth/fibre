@@ -36,6 +36,7 @@ via the GLSL function `vec3 velocity(vec3 p, float t)` . Additionally, a color a
  - P key to capture a screenshot of the current render in a new browser window
  - H key to hide/show the sidebar UI
  - F11 key to enter/exit fullscreen mode
+ - J key to export the current curves to Arnold ASS file format, which can be loaded as an Arnold standin in Maya and other DCCs for high quality raytraced rendering. A curve is exported for each start point in the current initial conditions grid (up to a maximum of 4 million curves), where each curve has a number of points equal to the number of integration timesteps. The per-vertex curve colors are baked into a per-curve `ramp_rgb` shader driving a `lambert` shader, which is mixed with a common `standard_surface` shader. The shader setup can be tuned as needed by modifying the ASS file.
 
 ## GLSL format
 

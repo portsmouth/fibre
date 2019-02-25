@@ -88,7 +88,7 @@ GUI.prototype.createguiSettings = function()
     // Integrator folder
     this.integratorFolder = this.gui.addFolder('Integrator');
     this.integratorFolder.add(renderer.settings, 'gridSpace', 0.0, 1.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
-    this.integratorFolder.add(renderer.settings, 'tubeWidth', 0.0, 0.1).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
+    this.integratorFolder.add(renderer.settings, 'tubeWidth', 0.0, 1.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'integrationTime', 0.1, 1000.0).onChange( function(value) { fibre.manip_enabled = false; renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     this.integratorFolder.add(renderer.settings, 'maxTimeSteps', 4, 4096).onChange( function(value) { fibre.manip_enabled = false; renderer.settings.maxTimeSteps = Math.floor(value); renderer.reset(true); } ).onFinishChange( function(value) { fibre.manip_enabled = true; } );
     

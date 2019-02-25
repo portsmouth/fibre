@@ -91,7 +91,7 @@ var Renderer = function()
     this.settings.bgColor = [0.0, 0.0, 0.0];
     this.settings.hairShader = true;
     this.settings.specShine = 50.0;
-    this.settings.specColor = [0.5, 0.5, 0.5];
+    this.settings.specColor = [0.2, 0.2, 0.2];
 
     this.settings.light1_color = [1.0, 0.9, 0.8];
     this.settings.light2_color = [0.8, 0.9, 1.0];
@@ -297,7 +297,6 @@ Renderer.prototype.reset = function(no_recompile)
     this.tmp_fbo.unbind();
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
-
     fibre.render_dirty = true;
 }
 
@@ -407,12 +406,37 @@ Renderer.prototype.initStates = function()
 Renderer.prototype.enableDumpCurves = function()
 {
     this.dumpingCurves = true;
+
+    // Adjust ray batch size (which equals the number of generated curves)
+    // to match the current grid resolution
+    let bounds = fibre.getBounds();
+    boundsMin = bounds.min;
+    boundsMax = bounds.max;
+    let scale = Math.max(boundsMax.x-boundsMin.x,
+                        boundsMax.y-boundsMin.y,
+                        boundsMax.z-boundsMin.z);
+    let gridSpace = scale*this.settings.gridSpace;
+    let nx = Math.max(1, (boundsMax.x - boundsMin.x) / Math.max(gridSpace, 1.0e-6));
+    let ny = Math.max(1, (boundsMax.y - boundsMin.y) / Math.max(gridSpace, 1.0e-6));
+    let nz = Math.max(1, (boundsMax.z - boundsMin.z) / Math.max(gridSpace, 1.0e-6));
+    let nxyz = nx * ny * nz;
+
+    this.cacheBatchSize = this.settings.rayBatch;
+    this.settings.rayBatch = Math.sqrt(nxyz);
+
+    // Cap maximum number of curves at 2048^2
+    if (this.settings.rayBatch > 2048) this.settings.rayBatch = 2048;
+    this.reset(true); 
+    this.initStates();
+
     let size = this.settings.rayBatch;
     let num_curves = size * size;
-    this.curves = []
+    this.curves_cvs = [];
+    this.curves_cols = [];
     for (var c=0; c<num_curves; c++) 
     {
-        this.curves.push([]);
+        this.curves_cvs.push([]);
+        this.curves_cols.push([]);
     }
 }
 
@@ -440,18 +464,30 @@ Renderer.prototype.recordCurves = function()
     //if (canRead)
     {
         let size = this.settings.rayBatch;
-        let pixels = new Float32Array(size * size * 4);
-        gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, pixels);
+        let pos_array = new Float32Array(size * size * 4);
+        gl.readBuffer(gl.COLOR_ATTACHMENT0);
+        gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, pos_array);
+
+        let col_array = new Float32Array(size * size * 4);
+        gl.readBuffer(gl.COLOR_ATTACHMENT1);
+        gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, col_array);
 
         let num_curves = size * size;
         for (var c=0; c<num_curves; c++) 
         {
-            let x = pixels[4*c+0];
-            let y = pixels[4*c+1];
-            let z = pixels[4*c+2];
-            this.curves[c].push(x);
-            this.curves[c].push(y);
-            this.curves[c].push(z);
+            let x = pos_array[4*c+0];
+            let y = pos_array[4*c+1];
+            let z = pos_array[4*c+2];
+            this.curves_cvs[c].push(x);
+            this.curves_cvs[c].push(y);
+            this.curves_cvs[c].push(z);
+
+            let r = col_array[4*c+0];
+            let g = col_array[4*c+1];
+            let b = col_array[4*c+2];
+            this.curves_cols[c].push(r);
+            this.curves_cols[c].push(g);
+            this.curves_cols[c].push(b);
         }
     }
 }
@@ -459,7 +495,7 @@ Renderer.prototype.recordCurves = function()
 Renderer.prototype.dumpCurves = function()
 {
     // generate an .ass file containing the curves data
-    let ass = `;
+    let ass = `
 options
 {
     AA_samples 3
@@ -485,59 +521,159 @@ driver_exr
     append off
 }
 
-lambert
+standard_surface
 {
-    name lambert_shader
+    name fibre_standard_surface
+    base 0.1
+    base_color 1 1 1
+    metalness 0.2
+    specular 0.5
+    specular_roughness 0.05
+}
+
+flat
+{
+    # How much of the baked color of the curves from the Fibre solver to blend in
+    # with the standard_surface shader above
+    name diffuse_mix
+    color 0.5 0.5 0.5
 }
 `;
 
-    for (var c=0; c<this.curves.length; c++) 
-    {
-        let curve_name = 'curve' + c.toString();
-        let curve = this.curves[c];
-        let num_cvs = curve.length / 3;
-        if (num_cvs < 3) continue;
-        ass += `
-curves 
-{
-    name ${curve_name}
-    num_points ${num_cvs}
-    points ${num_cvs} 1 POINT
-`;
-        for (var cv=0; cv<num_cvs; cv++)
-        {
-            let x = curve[3*cv+0].toString();
-            let y = curve[3*cv+1].toString();
-            let z = curve[3*cv+2].toString();
-            ass += `${x} ${y} ${z} `;
-        }
-        
-        ass += `
-    radius ${num_cvs-2} 1 FLOAT
-`;
-        for (var cv=0; cv<num_cvs-2; cv++)
-        {
-            let radius = this.tubeWidthWs();
-            ass += `${radius} `;
-        } // cv
+    let size = this.settings.rayBatch;
+    let num_curves = size * size;
 
-        ass += `
-    basis "catmull-rom"
-    mode "ribbon"
+    let FLT_MAX = 1.0e38;
+    let min_x =  FLT_MAX;
+    let max_x = -FLT_MAX;
+    let min_y =  FLT_MAX;
+    let max_y = -FLT_MAX;
+    let min_z =  FLT_MAX;
+    let max_z = -FLT_MAX;
+
+    for (var curve_index=0; curve_index<num_curves; curve_index++) 
+    {
+        let curve_index_str = curve_index.toString();
+        let cvs = this.curves_cvs[curve_index];
+        let num_cvs = cvs.length / 3;
+        if (num_cvs < 3) continue;
+
+        // Add curves node for curve shape
+    ass += `
+    curves 
+    {
+        name curve${curve_index_str}
+        num_points ${num_cvs}
+        points ${num_cvs} 1 POINT
+    `;
+            for (var cv=0; cv<num_cvs; cv++)
+            {
+                let x = cvs[3*cv+0];
+                let y = cvs[3*cv+1];
+                let z = cvs[3*cv+2];
+                if (x<min_x) min_x = x;
+                if (x>max_x) max_x = x;
+                if (y<min_y) min_y = y;
+                if (y>max_y) max_y = y;
+                if (z<min_z) min_z = z;
+                if (z>max_z) max_z = z;
+                ass += `${x.toString()} ${y.toString()} ${z.toString()} `;
+            }
+            
+            ass += `
+        radius ${num_cvs-2} 1 FLOAT
+    `;
+            for (var cv=0; cv<num_cvs-2; cv++)
+            {
+                let radius = this.tubeWidthWs();
+                ass += `${radius} `;
+            } // cv
+    
+            ass += `
+    basis "b-spline"
+    mode "thick"
     min_pixel_width 0
     receive_shadows on
     self_shadows on
     matrix
-     1 0 0 0
-     0 1 0 0
-     0 0 1 0
-     0 0 0 1
-    shader lambert_shader
+        1 0 0 0
+        0 1 0 0
+        0 0 1 0
+        0 0 0 1
+    shader mix${curve_index_str} 
     opaque on
     matte off
+}
+
+mix_shader
+{
+    name mix${curve_index_str}
+    mix diffuse_mix.r
+    shader1 lambert${curve_index_str} 
+    shader2 fibre_standard_surface
+}
+
+     `;
+
+        // Add lambert shader connected to ramp_rgb node for curve color
+        let cols = this.curves_cols[curve_index];
+        let num_cols = cols.length / 3;
+        ass += `
+lambert
+{
+    name lambert${curve_index_str} 
+    Kd_color ramp${curve_index_str} 
+}
+
+ramp_rgb
+{
+    name ramp${curve_index_str} 
+    type v
+    color ${num_cvs} 1 RGB
+`;
+    for (var c=0; c<num_cols; c++)
+    {
+        let r = cols[3*c+0].toString();
+        let g = cols[3*c+1].toString();
+        let b = cols[3*c+2].toString();
+        ass += `${r} ${g} ${b} `;
+    }
+
+    ass += `
+    position ${num_cols} 1 FLOAT
+`;
+    for (var c=0; c<num_cols; c++)
+    {
+        let t = c/num_cols;
+        ass += `${t} `;
+    }
+    ass += `
+    interpolation ${num_cols} 1 INT
+`;
+    for (var c=0; c<num_cols; c++)
+    {
+        ass += `2 `;
+    }
+    ass += `
  }
- `
+ `;
     } // curve
+
+    let center_x = 0.5*(max_x + min_x);
+    let center_y = 0.5*(max_y + min_y);
+    let center_z = 0.5*(max_z + min_z);
+    let extent_x = 0.5*(max_x - min_x);
+    let extent_y = 0.5*(max_y - min_y);
+    let extent_z = 0.5*(max_z - min_z);
+    ass += `
+persp_camera
+{
+ position ${center_x + extent_x} ${center_y + 0.5*extent_y} ${center_z + extent_z}
+ look_at ${center_x} ${center_y} ${center_z}
+ up 0 1 0
+ fov 40
+}
+    `;
 
     let state = fibre.get_state();
     let objJsonStr = fibre.get_stringified_state(state);
@@ -555,6 +691,10 @@ curves
 
     delete this.curves;
     this.dumpingCurves = false;
+
+    this.settings.rayBatch = this.cacheBatchSize;
+    this.reset(true);
+    this.initStates();
 }
 
 
